@@ -4,7 +4,7 @@
   "description": "Genome homology API client",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "jest --coverage",
     "build": "webpack -p --mode production",
     "watch": "webpack --watch"
   },
