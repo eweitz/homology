@@ -1,0 +1,38 @@
+{
+  "name": "homology",
+  "version": "0.0.1",
+  "description": "Genome homology API client",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "build": "webpack -p --mode production",
+    "watch": "webpack --watch"
+  },
+  "keywords": [
+    "genomics",
+    "biology",
+    "comparative",
+    "genomics",
+    "orthology",
+    "paralogy",
+    "service"
+  ],
+  "author": "Eric Weitz",
+  "license": "CC0-1.0",
+  "devDependencies": {
+    "@babel/core": "^7.4.5",
+    "babel-jest": "^24.8.0",
+    "babel-loader": "^8.0.6",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "babel-register": "^6.26.0",
+    "jest": "^24.8.0",
+    "jest-cli": "^24.8.0",
+    "jest-puppeteer": "^4.2.0",
+    "node-fetch": "^2.6.0",
+    "puppeteer": "^1.18.0",
+    "webpack": "^4.28.2",
+    "webpack-cli": "^3.1.2",
+    "webpack-dev-server": "^3.1.14"
+  }
+}
