@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Client library for OMA (Orthology MAtrix)
+ * API docs: https://omabrowser.org/api/docs
+ *
+ * This module supports fetching orthologs from OMA.  All functions here
+ * support the single exported function `fetchOrthologsFromOma`.
+ */
+
 var omaBase = 'https://omabrowser.org/api';
 
 /**
