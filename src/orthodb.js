@@ -4,7 +4,8 @@
 * API docs: https://www.orthodb.org/?page=api
 */
 
-var orthodbBase = 'https://www.orthodb.org';
+// var orthodbBase = 'https://www.orthodb.org';
+var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb';
 
 async function search(gene) {
   var response, ids;
