@@ -4,8 +4,13 @@
 * API docs: https://www.orthodb.org/?page=api
 */
 
+
+// OrthoDB does not support CORS.  Homology API on Firebase proxies OrthoDB and
+// supports CORS.  This enables client-side web requests to the OrthoDB API.
+//
 // var orthodbBase = 'https://www.orthodb.org';
 var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb';
+
 var ncbiBase = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&version=2.0&retmode=json';
 
 /**
@@ -22,6 +27,8 @@ async function fetchJson(path) {
  */
 async function fetchGeneLocation(ncbiGeneId) {
   var response, data, result, ginfo, location;
+  // Example:
+  // https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&version=2.0&retmode=json&id=3565955
   response = await fetch(ncbiBase + '&id=' + ncbiGeneId);
   data = await response.json();
   result = data.result;
@@ -30,28 +37,60 @@ async function fetchGeneLocation(ncbiGeneId) {
   return location;
 }
 
+/**
+ * Canonicalize organism name to lower-case and hyphen-delimited form
+ *
+ * Example:
+ * Caenorhabditis elegans -> caenorhabditis-elegans
+ */
+function normalize(name) {
+  return name.toLowerCase().replace(' ', '-');
+}
+
+/**
+ * Get genomic locations of orthologs from OrthoDB
+ *
+ * For a gene in a source organism, find orthologs in target organisms and
+ * return the genomic coordinates of the source gene and orthologous genes.
+ *
+ * Example:
+ * fetchOrthologsFromOrthodb(
+ *  'NFYA',
+ *  'homo-sapiens',
+ *  ['caenorhabditis-elegans']
+ * );
+ *
+ * @param {String} gene Gene name
+ * @param {String} sourceOrg Source organism name
+ * @param {Array<String>} targetOrgs List of target organism names
+ */
 async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   var orthologs, searchResults, id, rawOrthologs, locations;
 
+  // Example:
+  // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA
   searchResults = await fetchJson('/search?query=' + gene);
   id = searchResults[0];
 
+  // Example:
+  // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
   rawOrthologs = await fetchJson('/orthologs?id=' + id + '&species=all');
 
-  orthologs = rawOrthologs.filter(ro => {
-    var thisOrganism = ro.organism.name.toLowerCase().replace(' ', '-');
+  orthologs = rawOrthologs.filter(rawOrtholog => {
+    var thisOrganism = normalize(rawOrtholog.organism.name);
     return targetOrgs.includes(thisOrganism);
   });
 
   locations = await Promise.all(orthologs.map(async (ortholog) => {
-    var locs = await Promise.all(ortholog.genes.map(async (gene) => {
+    return await Promise.all(ortholog.genes.map(async (gene) => {
       var orthodbGeneId = gene.gene_id.param;
+      // Example:
+      // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
       var ogDetails = await fetchJson('/ogdetails?id=' + orthodbGeneId);
       var ncbiGeneId = ogDetails.entrez[0].id;
       var location = await fetchGeneLocation(ncbiGeneId);
       return location;
     }));
-    return locs;
   }));
 
   locations = locations[0];
