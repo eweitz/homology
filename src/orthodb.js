@@ -25,7 +25,7 @@ async function fetchJson(path) {
 /**
  * Get genomic coordinates of a gene using its NCBI Gene ID
  */
-async function fetchGeneLocation(ncbiGeneId) {
+async function fetchGeneLocationFromEUtils(ncbiGeneId) {
   var response, data, result, ginfo, location;
   // Example:
   // https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&version=2.0&retmode=json&id=3565955
@@ -47,6 +47,16 @@ function normalize(name) {
   return name.toLowerCase().replace(' ', '-');
 }
 
+async function fetchLocation(orthodbGene) {
+  var orthodbGeneId = orthodbGene.gene_id.param;
+  // Example:
+  // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
+  var ogDetails = await fetchJson('/ogdetails?id=' + orthodbGeneId);
+  var ncbiGeneId = ogDetails.entrez[0].id;
+  var location = await fetchGeneLocationFromEUtils(ncbiGeneId);
+  return location;
+}
+
 /**
  * Get genomic locations of orthologs from OrthoDB
  *
@@ -65,7 +75,8 @@ function normalize(name) {
  * @param {Array<String>} targetOrgs List of target organism names
  */
 async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
-  var orthologs, searchResults, id, rawOrthologs, locations;
+  var locations, searchResults, id, rawOrthologs, source,
+    targets = [];
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA
@@ -76,24 +87,23 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
   rawOrthologs = await fetchJson('/orthologs?id=' + id + '&species=all');
 
-  orthologs = rawOrthologs.filter(rawOrtholog => {
+  rawOrthologs.forEach(rawOrtholog => {
     var thisOrganism = normalize(rawOrtholog.organism.name);
-    return targetOrgs.includes(thisOrganism);
+    if (sourceOrg === thisOrganism) source = rawOrtholog;
+    if (targetOrgs.includes(thisOrganism)) targets.push(rawOrtholog);
   });
 
-  locations = await Promise.all(orthologs.map(async (ortholog) => {
-    return await Promise.all(ortholog.genes.map(async (gene) => {
-      var orthodbGeneId = gene.gene_id.param;
-      // Example:
-      // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
-      var ogDetails = await fetchJson('/ogdetails?id=' + orthodbGeneId);
-      var ncbiGeneId = ogDetails.entrez[0].id;
-      var location = await fetchGeneLocation(ncbiGeneId);
-      return location;
+  var sourceLocation = await fetchLocation(source.genes[0]);
+
+  var locations = await Promise.all(targets.map(async (target) => {
+    return await Promise.all(target.genes.map(async (gene) => {
+      return fetchLocation(gene);
     }));
   }));
 
   locations = locations[0];
+
+  locations.unshift(sourceLocation); // prepend to source to target array
 
   return locations;
 }
