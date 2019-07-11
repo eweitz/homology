@@ -25,8 +25,8 @@ describe('Homology.js', () => {
   it('should fetch orthologs from OrthoDB', async () => {
 
     let gene = 'NFYA';
-    let sourceOrg = 'homo-sapiens';
-    let targetOrgs = ['caenorhabditis-elegans'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['caenorhabditis elegans'];
 
     let orthologs = await fetchOrthologs(gene, sourceOrg, targetOrgs, 'orthodb');
 

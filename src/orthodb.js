@@ -37,16 +37,6 @@ async function fetchGeneLocationFromEUtils(ncbiGeneId) {
   return location;
 }
 
-/**
- * Canonicalize organism name to lower-case and hyphen-delimited form
- *
- * Example:
- * Caenorhabditis elegans -> caenorhabditis-elegans
- */
-function normalize(name) {
-  return name.toLowerCase().replace(' ', '-');
-}
-
 async function fetchLocation(orthodbGene) {
   var orthodbGeneId = orthodbGene.gene_id.param;
   // Example:
@@ -88,7 +78,7 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   rawOrthologs = await fetchJson('/orthologs?id=' + id + '&species=all');
 
   rawOrthologs.forEach(rawOrtholog => {
-    var thisOrganism = normalize(rawOrtholog.organism.name);
+    var thisOrganism = rawOrtholog.organism.name.toLowerCase();
     if (sourceOrg === thisOrganism) source = rawOrtholog;
     if (targetOrgs.includes(thisOrganism)) targets.push(rawOrtholog);
   });
