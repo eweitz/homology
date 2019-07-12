@@ -8,6 +8,14 @@
     "build": "webpack -p --mode production",
     "watch": "webpack --watch"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eweitz/homology.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eweitz/homology/issues"
+  },
+  "homepage": "https://github.com/eweitz/homology",
   "keywords": [
     "genomics",
     "biology",
