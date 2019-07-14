@@ -48,6 +48,40 @@ async function fetchLocation(orthodbGene) {
 }
 
 /**
+ * See if an ortholog matches a queried organism, and how well it matches
+ */
+async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
+  var source, rawOrthologs,
+    targets = [],
+    hasSourceNameMatch = false;
+
+  // Example:
+  // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
+  rawOrthologs = await fetchJson(`/orthologs?id=${orthologId}&species=all`);
+
+  rawOrthologs.forEach(rawOrtholog => {
+
+    // Is this ortholog record for the source organism?
+    var thisOrganism = rawOrtholog.organism.name.toLowerCase();
+    if (sourceOrg === thisOrganism) {
+      source = rawOrtholog;
+
+      // Do any genes in the record have a name matching the queried gene?
+      rawOrtholog.genes.forEach(geneObj => {
+        var thisGene = geneObj.gene_id.id.toLowerCase();
+        if (gene.toLowerCase() === thisGene) {
+          hasSourceNameMatch = true;
+        }
+      });
+    }
+
+    if (targetOrgs.includes(thisOrganism)) targets.push(rawOrtholog);
+  });
+
+  return [source, targets, hasSourceNameMatch];
+}
+
+/**
  * Get genomic locations of orthologs from OrthoDB
  *
  * For a gene in a source organism, find orthologs in target organisms and
@@ -65,24 +99,32 @@ async function fetchLocation(orthodbGene) {
  * @param {Array<String>} targetOrgs List of target organism names
  */
 async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
-  var locations, searchResults, id, rawOrthologs, source,
+  var locations, ids, i, id, source,
+    hasSourceNameMatch = false,
     targets = [];
 
-  // Example:
-  // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA
-  searchResults = await fetchJson('/search?query=' + gene);
-  id = searchResults[0];
+  // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
+  // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
+  var scope = "&level=2759&species=9606";
 
   // Example:
-  // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
-  rawOrthologs = await fetchJson('/orthologs?id=' + id + '&species=all');
+  // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
+  ids = await fetchJson('/search?query=' + gene + '&' + scope);
 
-  rawOrthologs.forEach(rawOrtholog => {
-    var thisOrganism = rawOrtholog.organism.name.toLowerCase();
-    if (sourceOrg === thisOrganism) source = rawOrtholog;
-    if (targetOrgs.includes(thisOrganism)) targets.push(rawOrtholog);
-  });
+  // Iterate through returned ortholog IDs
+  // Prefer orthologous pairs that have a gene name matching the queried gene
+  for (i = 0; i < ids.length; i++) {
+    id = ids[i];
+    [source, targets, hasSourceNameMatch] =
+      await findBestOrtholog(id, gene, sourceOrg, targetOrgs);
+    if (hasSourceNameMatch) break;
+  }
 
+  if (typeof source === 'undefined') {
+    throw Error(
+      `Ortholog not found for "${gene}" in source organism "${sourceOrg}"`
+    );
+  }
   var sourceLocation = await fetchLocation(source.genes[0]);
 
   var locations = await Promise.all(targets.map(async (target) => {
