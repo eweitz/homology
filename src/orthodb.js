@@ -11,7 +11,11 @@
 // var orthodbBase = 'https://www.orthodb.org';
 var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb';
 
-var ncbiBase = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&version=2.0&retmode=json';
+var apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
+
+var ncbiBase =
+  'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi' +
+  '?db=gene&version=2.0&retmode=json' + apiKey;
 
 /**
  * Get JSON response from OrthoDB API
