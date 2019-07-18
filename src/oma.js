@@ -41,7 +41,7 @@ async function fetchUniprotId(gene, org) {
     uniprotId = columns[0]; // e.g. P53_RAT
     // uniprotName = columns[1]; // e.g. P53_RAT
 
-    if (genes.includes(gene)) return uniprotId;
+    if (genes.includes(gene.toLowerCase())) return uniprotId;
   }
 
   throw Error(
@@ -115,7 +115,6 @@ async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
   var proteinId, sourceProtein, rawOrthologs, omaId, omaIdPrefix,
     orthologs, error, targetOrgPrefixes;
 
-  gene = gene.toLowerCase();
   try {
     proteinId = await fetchUniprotId(gene, sourceOrg);
     sourceProtein = await fetchOmaProtein(proteinId);
