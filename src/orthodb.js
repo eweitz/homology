@@ -131,6 +131,12 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   }
   var sourceLocation = await fetchLocation(source.genes[0]);
 
+  if (targets.length === 0) {
+    throw Error(
+      `Ortholog not found for "${gene}" in target organism "${targetOrgs[0]}"`
+    );
+  }
+
   var locations = await Promise.all(targets.map(async (target) => {
     return await Promise.all(target.genes.map(async (gene) => {
       return fetchLocation(gene);

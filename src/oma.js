@@ -156,7 +156,7 @@ async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
   });
 
   if (orthologs.length === 0) {
-    reportError('orthologsNotFoundInTarget', error);
+    reportError('orthologsNotFoundInTarget', error, gene, sourceOrg, targetOrgs);
   }
 
   orthologs.unshift(sourceProtein); // prepend to array
