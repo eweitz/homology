@@ -143,7 +143,7 @@ async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
   try {
     rawOrthologs = await fetchOmaOrthologs(proteinId);
   } catch(error) {
-    reportError('orthologsNotFound', error);
+    reportError('orthologsNotFound', error, gene, sourceOrg, targetOrgs);
   }
 
   // Get OMA ID prefixes for each target organism
