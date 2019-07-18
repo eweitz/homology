@@ -6,6 +6,8 @@
  * support the single exported function `fetchOrthologsFromOma`.
  */
 
+import {reportError} from './error';
+
 var omaBase = 'https://omabrowser.org/api';
 
 /**
@@ -102,26 +104,6 @@ function getOmaIdPrefix(org) {
     prefix = prefix.toUpperCase();
     return prefix;
   }
-}
-
-function reportError(error, errorObj=null, gene=null, org1=null, org2=null) {
-  var summaries, htmlSummary, textSummary, errorDetail;
-
-  summaries = {
-      'geneNotFound': 'Gene "' + gene + '" not found in ' + org1,
-      'orthologsNotFound': 'Orthologs not found for gene "' + gene + '"',
-      'orthologsNotFoundInTarget':
-        'Orthologs not found for gene "' + gene + '" in target organism ' + org2
-  }
-  errorDetail = errorObj ? `<small>${errorObj.message}</small>` : '';
-  htmlSummary =
-    `<span id="error-container">
-    <b>Error</b>: ${summaries[error]}.<br/>
-    ${errorDetail}
-    </span>`;
-  // statusContainer.innerHTML = htmlSummary;
-  textSummary = htmlSummary.replace('Error: ', '');
-  throw Error(textSummary);
 }
 
 /**
