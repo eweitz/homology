@@ -6,6 +6,8 @@
  * support the single exported function `fetchOrthologsFromOma`.
  */
 
+import {reportError} from './error';
+
 var omaBase = 'https://omabrowser.org/api';
 
 /**
@@ -39,7 +41,7 @@ async function fetchUniprotId(gene, org) {
     uniprotId = columns[0]; // e.g. P53_RAT
     // uniprotName = columns[1]; // e.g. P53_RAT
 
-    if (genes.includes(gene)) return uniprotId;
+    if (genes.includes(gene.toLowerCase())) return uniprotId;
   }
 
   throw Error(
@@ -104,26 +106,6 @@ function getOmaIdPrefix(org) {
   }
 }
 
-function reportError(error, errorObj=null, gene=null, org1=null, org2=null) {
-  var summaries, htmlSummary, textSummary, errorDetail;
-
-  summaries = {
-      'geneNotFound': 'Gene "' + gene + '" not found in ' + org1,
-      'orthologsNotFound': 'Orthologs not found for gene "' + gene + '"',
-      'orthologsNotFoundInTarget':
-        'Orthologs not found for gene "' + gene + '" in target organism ' + org2
-  }
-  errorDetail = errorObj ? `<small>${errorObj.message}</small>` : '';
-  htmlSummary =
-    `<span id="error-container">
-    <b>Error</b>: ${summaries[error]}.<br/>
-    ${errorDetail}
-    </span>`;
-  // statusContainer.innerHTML = htmlSummary;
-  textSummary = htmlSummary.replace('Error: ', '');
-  throw Error(textSummary);
-}
-
 /**
   * Given a gene in a source organism, retrieve its orthologs in
   * a list of other organisms.  Returns OMA protein records for
@@ -133,7 +115,6 @@ async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
   var proteinId, sourceProtein, rawOrthologs, omaId, omaIdPrefix,
     orthologs, error, targetOrgPrefixes;
 
-  gene = gene.toLowerCase();
   try {
     proteinId = await fetchUniprotId(gene, sourceOrg);
     sourceProtein = await fetchOmaProtein(proteinId);
@@ -143,7 +124,7 @@ async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
   try {
     rawOrthologs = await fetchOmaOrthologs(proteinId);
   } catch(error) {
-    reportError('orthologsNotFound', error);
+    reportError('orthologsNotFound', error, gene, sourceOrg, targetOrgs);
   }
 
   // Get OMA ID prefixes for each target organism
@@ -156,7 +137,7 @@ async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
   });
 
   if (orthologs.length === 0) {
-    reportError('orthologsNotFoundInTarget', error);
+    reportError('orthologsNotFoundInTarget', error, gene, sourceOrg, targetOrgs);
   }
 
   orthologs.unshift(sourceProtein); // prepend to array

@@ -1,9 +1,12 @@
 /**
 * @fileoverview Client library for OrthoDB
-*
 * API docs: https://www.orthodb.org/?page=api
+*
+* This module supports fetching orthologs from OMA.  All functions here
+* support the single exported function `fetchOrthologsFromOrthoDb`.
 */
 
+import {reportError} from './error';
 
 // OrthoDB does not support CORS.  Homology API on Firebase proxies OrthoDB and
 // supports CORS.  This enables client-side web requests to the OrthoDB API.
@@ -125,11 +128,13 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   }
 
   if (typeof source === 'undefined') {
-    throw Error(
-      `Ortholog not found for "${gene}" in source organism "${sourceOrg}"`
-    );
+    reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
   }
   var sourceLocation = await fetchLocation(source.genes[0]);
+
+  if (targets.length === 0) {
+    reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
+  }
 
   var locations = await Promise.all(targets.map(async (target) => {
     return await Promise.all(target.genes.map(async (gene) => {
