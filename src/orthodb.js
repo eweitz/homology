@@ -18,7 +18,7 @@ var apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
 
 var ncbiBase =
   'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi' +
-  '?db=gene&version=2.0&retmode=json' + apiKey;
+  '?db=gene&retmode=json' + apiKey;
 
 /**
  * Get JSON response from OrthoDB API
@@ -35,7 +35,7 @@ async function fetchJson(path) {
 async function fetchGeneLocationFromEUtils(ncbiGeneId) {
   var response, data, result, ginfo, location;
   // Example:
-  // https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&version=2.0&retmode=json&id=3565955
+  // https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&retmode=json&id=3565955
   response = await fetch(ncbiBase + '&id=' + ncbiGeneId);
   data = await response.json();
   result = data.result;
@@ -45,12 +45,24 @@ async function fetchGeneLocationFromEUtils(ncbiGeneId) {
 }
 
 async function fetchLocation(orthodbGene) {
-  var orthodbGeneId = orthodbGene.gene_id.param;
+  var ncbiGeneId, ogDetails, location,
+    orthodbGeneId = orthodbGene.gene_id.param;
+
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
-  var ogDetails = await fetchJson('/ogdetails?id=' + orthodbGeneId);
-  var ncbiGeneId = ogDetails.entrez[0].id;
-  var location = await fetchGeneLocationFromEUtils(ncbiGeneId);
+  ogDetails = await fetchJson('/ogdetails?id=' + orthodbGeneId);
+
+  if ('entrez' in ogDetails) {
+    ncbiGeneId = ogDetails.entrez[0].id;
+  } else {
+    // Occurs in Drosophila melanogaster, e.g.
+    // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=7227_0:000534
+    ogDetails.xrefs.forEach(xref => {
+      if (xref.type === 'NCBIgene') ncbiGeneId = xref.name;
+    });
+  }
+
+  location = await fetchGeneLocationFromEUtils(ncbiGeneId);
   return location;
 }
 
