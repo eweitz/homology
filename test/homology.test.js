@@ -32,8 +32,7 @@ describe('Homology.js', () => {
 
     let expectedOrthologs = [
       '6:41072973-41102402',
-      'I:11224885-11233248',
-      'X:11946801-11944603'
+      'I:11224885-11233248'
     ];
 
     expect(orthologs).toStrictEqual(expectedOrthologs);
