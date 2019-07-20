@@ -148,15 +148,24 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
     reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
   }
 
-  var locations = await Promise.all(targets.map(async (target) => {
-    return await Promise.all(target.genes.map(async (gene) => {
-      return fetchLocation(gene);
-    }));
-  }));
+  // NCBI rate limits prevent quickly fetching many gene locations, so
+  // simply locate the first gene in the first target.
+  // Example with many target hits this (over)simplifies:
+  // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
+  var targetLocation = await fetchLocation(targets[0].genes[0]);
 
-  locations = locations[0];
+  // TODO:
+  //  * Uncomment this when multi-target orthology support is implemented
+  //  * Implement exponential backoff and jitter to address rate limits
+  // var locations = await Promise.all(targets.map(async (target) => {
+  //   return await Promise.all(target.genes.map(async (gene) => {
+  //     return fetchLocation(gene);
+  //   }));
+  // }));
+  // locations = locations[0];
+  // locations.unshift(sourceLocation); // prepend to source to target array
 
-  locations.unshift(sourceLocation); // prepend to source to target array
+  locations = [sourceLocation, targetLocation];
 
   return locations;
 }
