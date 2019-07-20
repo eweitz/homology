@@ -142,7 +142,11 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   if (typeof source === 'undefined') {
     reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
   }
-  var sourceLocation = await fetchLocation(source.genes[0]);
+  var sourceGene = source.genes.filter(geneObj => {
+    var thisGene = geneObj.gene_id.id.toLowerCase();
+    return gene.toLowerCase() === thisGene;
+  })[0];
+  var sourceLocation = await fetchLocation(sourceGene);
 
   if (targets.length === 0) {
     reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
