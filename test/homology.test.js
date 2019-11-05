@@ -12,11 +12,11 @@ describe('Homology.js', () => {
 
   it('should fetch orthologs from OMA', async () => {
   
-    let gene = 'MTOR';
+    let genes = ['MTOR'];
     let sourceOrg = 'homo sapiens';
     let targetOrgs = ['mus musculus'];
 
-    let orthologs = await fetchOrthologs(gene, sourceOrg, targetOrgs);
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
     
     expect(orthologs[0]).toBe('1:11107485-11259409');
     expect(orthologs[1]).toBe('4:148452271-148556860');
@@ -24,15 +24,15 @@ describe('Homology.js', () => {
 
   it('should fetch orthologs from OrthoDB', async () => {
 
-    let gene = 'NFYA';
+    let genes = ['NFYA'];
     let sourceOrg = 'homo sapiens';
     let targetOrgs = ['caenorhabditis elegans'];
 
-    let orthologs = await fetchOrthologs(gene, sourceOrg, targetOrgs, 'orthodb');
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs, 'orthodb');
 
     let expectedOrthologs = [
       '6:41072973-41102402',
-      'I:11224885-11233248'
+      'I:11224835-11233333'
     ];
 
     expect(orthologs).toStrictEqual(expectedOrthologs);

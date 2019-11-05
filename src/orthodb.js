@@ -118,8 +118,8 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
  * @param {String} sourceOrg Source organism name
  * @param {Array<String>} targetOrgs List of target organism names
  */
-async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
-  var locations, ids, i, id, source,
+async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
+  var locations, ids, i, j, id, source, gene, scope,
     hasSourceNameMatch = false,
     targets = [];
 
@@ -127,50 +127,53 @@ async function fetchOrthologsFromOrthodb(gene, sourceOrg, targetOrgs) {
   // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
   var scope = "&level=2759&species=9606";
 
-  // Example:
-  // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
-  ids = await fetchJson('/search?query=' + gene + '&' + scope);
+  for (i = 0; i < genes.length; i++) {
+    gene = genes[i];
+    // Example:
+    // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
+    ids = await fetchJson('/search?query=' + gene + '&' + scope);
 
-  // Iterate through returned ortholog IDs
-  // Prefer orthologous pairs that have a gene name matching the queried gene
-  for (i = 0; i < ids.length; i++) {
-    id = ids[i];
-    [source, targets, hasSourceNameMatch] =
-      await findBestOrtholog(id, gene, sourceOrg, targetOrgs);
-    if (hasSourceNameMatch) break;
+    // Iterate through returned ortholog IDs
+    // Prefer orthologous pairs that have a gene name matching the queried gene
+    for (j = 0; j < ids.length; j++) {
+      id = ids[j];
+      [source, targets, hasSourceNameMatch] =
+        await findBestOrtholog(id, gene, sourceOrg, targetOrgs);
+      if (hasSourceNameMatch) break;
+    }
+
+    if (typeof source === 'undefined') {
+      reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
+    }
+    var sourceGene = source.genes.filter(geneObj => {
+      var thisGene = geneObj.gene_id.id.toLowerCase();
+      return gene.toLowerCase() === thisGene;
+    })[0];
+    var sourceLocation = await fetchLocation(sourceGene);
+
+    if (targets.length === 0) {
+      reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
+    }
+
+    // NCBI rate limits prevent quickly fetching many gene locations, so
+    // simply locate the first gene in the first target.
+    // Example with many target hits this (over)simplifies:
+    // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
+    var targetLocation = await fetchLocation(targets[0].genes[0]);
+
+    // TODO:
+    //  * Uncomment this when multi-target orthology support is implemented
+    //  * Implement exponential backoff and jitter to address rate limits
+    // var locations = await Promise.all(targets.map(async (target) => {
+    //   return await Promise.all(target.genes.map(async (gene) => {
+    //     return fetchLocation(gene);
+    //   }));
+    // }));
+    // locations = locations[0];
+    // locations.unshift(sourceLocation); // prepend to source to target array
+
+    locations = [sourceLocation, targetLocation];
   }
-
-  if (typeof source === 'undefined') {
-    reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
-  }
-  var sourceGene = source.genes.filter(geneObj => {
-    var thisGene = geneObj.gene_id.id.toLowerCase();
-    return gene.toLowerCase() === thisGene;
-  })[0];
-  var sourceLocation = await fetchLocation(sourceGene);
-
-  if (targets.length === 0) {
-    reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
-  }
-
-  // NCBI rate limits prevent quickly fetching many gene locations, so
-  // simply locate the first gene in the first target.
-  // Example with many target hits this (over)simplifies:
-  // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
-  var targetLocation = await fetchLocation(targets[0].genes[0]);
-
-  // TODO:
-  //  * Uncomment this when multi-target orthology support is implemented
-  //  * Implement exponential backoff and jitter to address rate limits
-  // var locations = await Promise.all(targets.map(async (target) => {
-  //   return await Promise.all(target.genes.map(async (gene) => {
-  //     return fetchLocation(gene);
-  //   }));
-  // }));
-  // locations = locations[0];
-  // locations.unshift(sourceLocation); // prepend to source to target array
-
-  locations = [sourceLocation, targetLocation];
 
   return locations;
 }

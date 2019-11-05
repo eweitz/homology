@@ -113,14 +113,15 @@ function getOmaIdPrefix(org) {
   */
 async function fetchOrthologsFromOma(genes, sourceOrg, targetOrgs) {
   var proteinId, sourceProtein, rawOrthologs, omaId, omaIdPrefix,
-    orthologs, error, targetOrgPrefixes, i;
+    orthologs, error, targetOrgPrefixes, i, gene;
 
   for (i = 0; i < genes.length; i++) {
+    gene = genes[i];
     try {
       proteinId = await fetchUniprotId(gene, sourceOrg);
       sourceProtein = await fetchOmaProtein(proteinId);
     } catch(error) {
-      reportError('geneNotFound', error, gene, sourceOrg, [targetOrgs]);
+      reportError('geneNotFound', error, gene, sourceOrg, targetOrgs);
     }
     try {
       rawOrthologs = await fetchOmaOrthologs(proteinId);
