@@ -107,44 +107,46 @@ function getOmaIdPrefix(org) {
 }
 
 /**
-  * Given a gene in a source organism, retrieve its orthologs in
-  * a list of other organisms.  Returns OMA protein records for
-  * source and target organisms.
+  * Given genes in a source organism, retrieve their orthologs in
+  * other organisms.  Returns OMA protein records for source and target
+  * organisms.
   */
-async function fetchOrthologsFromOma(gene, sourceOrg, targetOrgs) {
+async function fetchOrthologsFromOma(genes, sourceOrg, targetOrgs) {
   var proteinId, sourceProtein, rawOrthologs, omaId, omaIdPrefix,
-    orthologs, error, targetOrgPrefixes;
+    orthologs, error, targetOrgPrefixes, i;
 
-  try {
-    proteinId = await fetchUniprotId(gene, sourceOrg);
-    sourceProtein = await fetchOmaProtein(proteinId);
-  } catch(error) {
-    reportError('geneNotFound', error, gene, sourceOrg, [targetOrgs]);
+  for (i = 0; i < genes.length; i++) {
+    try {
+      proteinId = await fetchUniprotId(gene, sourceOrg);
+      sourceProtein = await fetchOmaProtein(proteinId);
+    } catch(error) {
+      reportError('geneNotFound', error, gene, sourceOrg, [targetOrgs]);
+    }
+    try {
+      rawOrthologs = await fetchOmaOrthologs(proteinId);
+    } catch(error) {
+      reportError('orthologsNotFound', error, gene, sourceOrg, targetOrgs);
+    }
+
+    // Get OMA ID prefixes for each target organism
+    targetOrgPrefixes = targetOrgs.map(org => getOmaIdPrefix(org));
+
+    orthologs = rawOrthologs.filter(rawOrtholog => {
+      omaId = rawOrtholog.omaid; // e.g. RATNO03710
+      omaIdPrefix = omaId.slice(0, 5); // e.g. RATNO
+      return targetOrgPrefixes.includes(omaIdPrefix);
+    });
+
+    if (orthologs.length === 0) {
+      reportError('orthologsNotFoundInTarget', error, gene, sourceOrg, targetOrgs);
+    }
+
+    orthologs.unshift(sourceProtein); // prepend to array
+
+    orthologs = orthologs.map(d => {
+      return d.chromosome + ':' + d.locus.start + '-' + d.locus.end
+    });
   }
-  try {
-    rawOrthologs = await fetchOmaOrthologs(proteinId);
-  } catch(error) {
-    reportError('orthologsNotFound', error, gene, sourceOrg, targetOrgs);
-  }
-
-  // Get OMA ID prefixes for each target organism
-  targetOrgPrefixes = targetOrgs.map(org => getOmaIdPrefix(org));
-
-  orthologs = rawOrthologs.filter(rawOrtholog => {
-    omaId = rawOrtholog.omaid; // e.g. RATNO03710
-    omaIdPrefix = omaId.slice(0, 5); // e.g. RATNO
-    return targetOrgPrefixes.includes(omaIdPrefix);
-  });
-
-  if (orthologs.length === 0) {
-    reportError('orthologsNotFoundInTarget', error, gene, sourceOrg, targetOrgs);
-  }
-
-  orthologs.unshift(sourceProtein); // prepend to array
-
-  orthologs = orthologs.map(d => {
-    return d.chromosome + ':' + d.locus.start + '-' + d.locus.end
-  });
 
   return orthologs;
 }
