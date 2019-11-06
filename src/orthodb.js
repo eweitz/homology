@@ -119,9 +119,10 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
  * @param {Array<String>} targetOrgs List of target organism names
  */
 async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
-  var locations, ids, i, j, id, source, gene, scope,
+  var ids, i, j, id, source, gene, scope,
     hasSourceNameMatch = false,
-    targets = [];
+    targets = [],
+    locations = [];
 
   // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
   // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
@@ -172,7 +173,7 @@ async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
     // locations = locations[0];
     // locations.unshift(sourceLocation); // prepend to source to target array
 
-    locations = [sourceLocation, targetLocation];
+    locations.push([sourceLocation, targetLocation]);
   }
 
   return locations;

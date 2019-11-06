@@ -113,7 +113,8 @@ function getOmaIdPrefix(org) {
   */
 async function fetchOrthologsFromOma(genes, sourceOrg, targetOrgs) {
   var proteinId, sourceProtein, rawOrthologs, omaId, omaIdPrefix,
-    orthologs, error, targetOrgPrefixes, i, gene;
+    theseOrthologs, error, targetOrgPrefixes, i, gene,
+    orthologs = [];
 
   for (i = 0; i < genes.length; i++) {
     gene = genes[i];
@@ -132,21 +133,23 @@ async function fetchOrthologsFromOma(genes, sourceOrg, targetOrgs) {
     // Get OMA ID prefixes for each target organism
     targetOrgPrefixes = targetOrgs.map(org => getOmaIdPrefix(org));
 
-    orthologs = rawOrthologs.filter(rawOrtholog => {
+    theseOrthologs = rawOrthologs.filter(rawOrtholog => {
       omaId = rawOrtholog.omaid; // e.g. RATNO03710
       omaIdPrefix = omaId.slice(0, 5); // e.g. RATNO
       return targetOrgPrefixes.includes(omaIdPrefix);
     });
 
-    if (orthologs.length === 0) {
+    console.log(theseOrthologs)
+    if (theseOrthologs.length === 0) {
       reportError('orthologsNotFoundInTarget', error, gene, sourceOrg, targetOrgs);
     }
 
-    orthologs.unshift(sourceProtein); // prepend to array
+    theseOrthologs.unshift(sourceProtein); // prepend to array
 
-    orthologs = orthologs.map(d => {
+    theseOrthologs = theseOrthologs.map(d => {
       return d.chromosome + ':' + d.locus.start + '-' + d.locus.end
     });
+    orthologs.push(theseOrthologs);
   }
 
   return orthologs;
