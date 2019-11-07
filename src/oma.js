@@ -139,7 +139,6 @@ async function fetchOrthologsFromOma(genes, sourceOrg, targetOrgs) {
       return targetOrgPrefixes.includes(omaIdPrefix);
     });
 
-    console.log(theseOrthologs)
     if (theseOrthologs.length === 0) {
       reportError('orthologsNotFoundInTarget', error, gene, sourceOrg, targetOrgs);
     }

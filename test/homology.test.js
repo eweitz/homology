@@ -18,8 +18,8 @@ describe('Homology.js', () => {
 
     let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
     
-    expect(orthologs[0]).toBe('1:11107485-11259409');
-    expect(orthologs[1]).toBe('4:148452271-148556860');
+    expect(orthologs[0][0]).toBe('1:11107485-11259409');
+    expect(orthologs[0][1]).toBe('4:148452271-148556860');
   });
 
   it('should fetch orthologs from OrthoDB', async () => {
@@ -35,6 +35,6 @@ describe('Homology.js', () => {
       'I:11224835-11233333'
     ];
 
-    expect(orthologs).toStrictEqual(expectedOrthologs);
+    expect(orthologs[0]).toStrictEqual(expectedOrthologs);
   });
 });
