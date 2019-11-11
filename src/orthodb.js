@@ -133,10 +133,15 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
   if (typeof source === 'undefined') {
     reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
   }
+
   var sourceGene = source.genes.filter(geneObj => {
     var thisGene = geneObj.gene_id.id.toLowerCase();
     return gene.toLowerCase() === thisGene;
   })[0];
+
+  if (typeof sourceGene === 'undefined') {
+   reportError('geneNotFound', null, gene, sourceOrg);
+  }
   var sourceLocation = await fetchLocation(sourceGene);
 
   if (targets.length === 0) {
