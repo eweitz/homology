@@ -146,7 +146,10 @@ async function fetchOrthologsFromOma(genes, sourceOrg, targetOrgs) {
     theseOrthologs.unshift(sourceProtein); // prepend to array
 
     theseOrthologs = theseOrthologs.map(d => {
-      return d.chromosome + ':' + d.locus.start + '-' + d.locus.end
+      return {
+        gene: d.canonicalid,
+        location: d.chromosome + ':' + d.locus.start + '-' + d.locus.end
+      }
     });
     orthologs.push(theseOrthologs);
   }
