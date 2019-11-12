@@ -22,7 +22,7 @@ function reportError(error, errorObj=null, gene=null, org1=null, org2=null) {
   if (org2 !== null) org2 = normalizeOrganismName(org2[0]);
 
   summaries = {
-      'geneNotFound': `Gene "${gene}" not found in "${org1}"`,
+      'geneNotFound': `Gene "${gene}" not found in source organism "${org1}"`,
       'orthologsNotFound': `Orthologs not found for gene "${gene}"`,
       'orthologsNotFoundInTarget':
         `Orthologs not found for gene "${gene}" in target organism "${org2}"`

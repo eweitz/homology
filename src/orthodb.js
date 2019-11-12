@@ -6,7 +6,14 @@
 * support the single exported function `fetchOrthologsFromOrthoDb`.
 */
 
+import Bottleneck from 'bottleneck';
+
 import {reportError} from './error';
+
+var limiter = new Bottleneck({
+  minTime: 333,
+  maxConcurrent: 3
+});
 
 // OrthoDB does not support CORS.  Homology API on Firebase proxies OrthoDB and
 // supports CORS.  This enables client-side web requests to the OrthoDB API.
@@ -63,7 +70,7 @@ async function fetchLocation(orthodbGene) {
     });
   }
 
-  location = await fetchGeneLocationFromEUtils(ncbiGeneId);
+  location = await limiter.schedule(() => fetchGeneLocationFromEUtils(ncbiGeneId));
   return location;
 }
 
@@ -101,6 +108,68 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
   return [source, targets, hasSourceNameMatch];
 }
 
+async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
+  var ids, j, id, source, gene, scope, location, ids,
+    hasSourceNameMatch = false,
+    targets = [];
+
+  // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
+  // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
+  var scope = "&level=2759&species=9606";
+
+  // Example:
+  // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
+  ids = await fetchJson('/search?query=' + gene + '&' + scope);
+
+  // Iterate through returned ortholog IDs
+  // Prefer orthologous pairs that have a gene name matching the queried gene
+  for (j = 0; j < ids.length; j++) {
+    id = ids[j];
+    [source, targets, hasSourceNameMatch] =
+      await findBestOrtholog(id, gene, sourceOrg, targetOrgs);
+    if (hasSourceNameMatch) break;
+  }
+
+  if (typeof source === 'undefined') {
+    reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
+  }
+
+  var sourceGene = source.genes.filter(geneObj => {
+    var thisGene = geneObj.gene_id.id.toLowerCase();
+    return gene.toLowerCase() === thisGene;
+  })[0];
+
+  if (typeof sourceGene === 'undefined') {
+   reportError('geneNotFound', null, gene, sourceOrg);
+  }
+  var sourceLocation = await fetchLocation(sourceGene);
+
+  if (targets.length === 0) {
+    reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
+  }
+
+  // NCBI rate limits prevent quickly fetching many gene locations, so
+  // simply locate the first gene in the first target.
+  // Example with many target hits this (over)simplifies:
+  // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
+  var targetLocation = await fetchLocation(targets[0].genes[0]);
+
+  // TODO:
+  //  * Uncomment this when multi-target orthology support is implemented
+  //  * Implement exponential backoff and jitter to address rate limits
+  // var locations = await Promise.all(targets.map(async (target) => {
+  //   return await Promise.all(target.genes.map(async (gene) => {
+  //     return fetchLocation(gene);
+  //   }));
+  // }));
+  // locations = locations[0];
+  // locations.unshift(sourceLocation); // prepend to source to target array
+
+  location = [sourceLocation, targetLocation];
+
+  return location;
+}
+
 /**
  * Get genomic locations of orthologs from OrthoDB
  *
@@ -119,64 +188,8 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
  * @param {Array<String>} targetOrgs List of target organism names
  */
 async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
-  var ids, i, j, id, source, gene, scope,
-    hasSourceNameMatch = false,
-    targets = [],
-    locations = [];
-
-  // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
-  // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
-  var scope = "&level=2759&species=9606";
-
-  for (i = 0; i < genes.length; i++) {
-    gene = genes[i];
-    // Example:
-    // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
-    ids = await fetchJson('/search?query=' + gene + '&' + scope);
-
-    // Iterate through returned ortholog IDs
-    // Prefer orthologous pairs that have a gene name matching the queried gene
-    for (j = 0; j < ids.length; j++) {
-      id = ids[j];
-      [source, targets, hasSourceNameMatch] =
-        await findBestOrtholog(id, gene, sourceOrg, targetOrgs);
-      if (hasSourceNameMatch) break;
-    }
-
-    if (typeof source === 'undefined') {
-      reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
-    }
-    var sourceGene = source.genes.filter(geneObj => {
-      var thisGene = geneObj.gene_id.id.toLowerCase();
-      return gene.toLowerCase() === thisGene;
-    })[0];
-    var sourceLocation = await fetchLocation(sourceGene);
-
-    if (targets.length === 0) {
-      reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
-    }
-
-    // NCBI rate limits prevent quickly fetching many gene locations, so
-    // simply locate the first gene in the first target.
-    // Example with many target hits this (over)simplifies:
-    // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
-    var targetLocation = await fetchLocation(targets[0].genes[0]);
-
-    // TODO:
-    //  * Uncomment this when multi-target orthology support is implemented
-    //  * Implement exponential backoff and jitter to address rate limits
-    // var locations = await Promise.all(targets.map(async (target) => {
-    //   return await Promise.all(target.genes.map(async (gene) => {
-    //     return fetchLocation(gene);
-    //   }));
-    // }));
-    // locations = locations[0];
-    // locations.unshift(sourceLocation); // prepend to source to target array
-
-    locations.push([sourceLocation, targetLocation]);
-  }
-
-  return locations;
+  var tasks = genes.map(gene => fetchOrtholog(gene, sourceOrg, targetOrgs));
+  return Promise.all(tasks);
 }
 
 export default fetchOrthologsFromOrthodb;
