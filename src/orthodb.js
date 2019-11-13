@@ -108,6 +108,17 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
   return [source, targets, hasSourceNameMatch];
 }
 
+function getTargetGene(target, sourceGeneName) {
+  var nameMatches = target.genes.filter(gene => {
+    return gene.gene_id.id.toLowerCase() === sourceGeneName.toLowerCase();
+  });
+  if (nameMatches.length === 0) {
+    return target.genes[0];
+  } else {
+    return nameMatches[0];
+  }
+}
+
 async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
   var ortholog, ids, j, id, source, gene, scope, ids,
     hasSourceNameMatch = false,
@@ -151,7 +162,7 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
   // TODO: Return 1-to-many mappings
   // Example with many target hits this (over)simplifies:
   // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
-  var targetGene = targets[0].genes[0];
+  var targetGene = getTargetGene(targets[0], gene)
   var targetLocation = await fetchLocation(targetGene);
 
   var splitName = targetGene.gene_id.id.split(';');
