@@ -119,14 +119,28 @@ function getTargetGene(target, sourceGeneName) {
   }
 }
 
+async function getTarget(targets, gene) {
+  // TODO: Return 1-to-many mappings
+  // Example with many target hits this (over)simplifies:
+  // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
+  var targetGene = getTargetGene(targets[0], gene)
+  var targetLocation = await fetchLocation(targetGene);
+
+  var splitName = targetGene.gene_id.id.split(';');
+  var nameIndex = (splitName.length > 1) ? 1 : 0;
+  var targetGeneName = splitName[nameIndex];
+
+  return [targetLocation, targetGeneName];
+}
+
 async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
-  var ortholog, ids, j, id, source, gene, scope, ids,
+  var ortholog, ids, j, id, source, gene, scope, ids, sourceGene,
     hasSourceNameMatch = false,
     targets = [];
 
   // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
   // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
-  var scope = "&level=2759&species=9606";
+  scope = "&level=2759&species=9606";
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
@@ -145,7 +159,7 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
     reportError('orthologsNotFound', null, gene, sourceOrg, targetOrgs);
   }
 
-  var sourceGene = source.genes.filter(geneObj => {
+  sourceGene = source.genes.filter(geneObj => {
     var thisGene = geneObj.gene_id.id.toLowerCase();
     return gene.toLowerCase() === thisGene;
   })[0];
@@ -159,15 +173,7 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
     reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
   }
 
-  // TODO: Return 1-to-many mappings
-  // Example with many target hits this (over)simplifies:
-  // http://eweitz.github.io/ideogram/comparative-genomics?org=homo-sapiens&org2=mus-musculus&source=orthodb&gene=SAP30
-  var targetGene = getTargetGene(targets[0], gene)
-  var targetLocation = await fetchLocation(targetGene);
-
-  var splitName = targetGene.gene_id.id.split(';');
-  var nameIndex = (splitName.length > 1) ? 1 : 0;
-  var targetGeneName = splitName[nameIndex];
+  [targetLocation, targetGeneName] = getTarget(targets, gene);
 
   // TODO:
   //  * Uncomment this when multi-target orthology support is implemented
