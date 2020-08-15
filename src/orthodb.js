@@ -8,6 +8,33 @@
 
 import Bottleneck from 'bottleneck';
 
+var taxidByName = {
+  'anopheles gambiae': '7165',
+  'arabidopsis thaliana': '3702',
+  'aspergillis fumigatus': '746128',
+  'aspergillus niger': '5061',
+  'aspergillus oryzae': '5062',
+  'brachypodium distachyon': '15368',
+  'canis lupus familiaris': '9615',
+  'chlorocebus sabaeus': '60711',
+  'ciona intestinalis': '7719',
+  'drosophila melanogaster': '7227',
+  'felis catus': '9685',
+  'gallus gallus': '9031',
+  'gorilla gorilla': '9593',
+  'homo sapiens': '9606',
+  'hordeum vulgare': '4513',
+  'macaca fascicularis': '9541',
+  'macaca mulatta': '9544',
+  'mus musculus': '10090',
+  'musa acuminata': '4641',
+  'oryza sativa': '4530',
+  'pan paniscus': '9597',
+  'pan troglodytes': '9598',
+  'rattus norvegicus': '10116',
+  'zea mays': '4577'
+}
+
 import {reportError} from './error';
 
 var limiter = new Bottleneck({
@@ -18,9 +45,9 @@ var limiter = new Bottleneck({
 // OrthoDB does not support CORS.  Homology API on Firebase proxies OrthoDB and
 // supports CORS.  This enables client-side web requests to the OrthoDB API.
 //
-// var orthodbBase = 'https://www.orthodb.org';
-var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb';
-// var orthodbBase = 'http://localhost:5000/orthodb';
+// var orthodbBase = 'https://www.orthodb.org/';
+// var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb/';
+var orthodbBase = 'http://localhost:5000/orthodb/';
 
 var apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
 
@@ -58,7 +85,7 @@ async function fetchLocation(orthodbGene) {
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
-  ogDetails = await fetchJson('/ogdetails?id=' + orthodbGeneId);
+  ogDetails = await fetchJson('ogdetails?id=' + orthodbGeneId);
 
   if ('entrez' in ogDetails) {
     ncbiGeneId = ogDetails.entrez[0].id;
@@ -74,6 +101,10 @@ async function fetchLocation(orthodbGene) {
   return location;
 }
 
+function taxidFromOrganismName(name) {
+  return name in taxidByName ? taxidByName[name] : 'all';
+}
+
 /**
  * See if an ortholog matches a queried organism, and how well it matches
  */
@@ -82,9 +113,16 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
     targets = [],
     hasSourceNameMatch = false;
 
+  const tOrg = targetOrgs[0];
+  console.log('tOrg')
+  console.log(tOrg)
+  const speciesParam = taxidFromOrganismName(tOrg);
+  console.log('speciesParam')
+  console.log(speciesParam)
+
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
-  rawOrthologs = await fetchJson(`/orthologs?id=${orthologId}&species=all`);
+  rawOrthologs = await fetchJson(`orthologs?id=${orthologId}&species=${speciesParam}`);
 
   rawOrthologs.forEach(rawOrtholog => {
 
@@ -109,9 +147,15 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
 }
 
 function getTargetGene(target, sourceGeneName) {
+  console.log('target')
+  console.log(target)
+  console.log('sourceGeneName')
+  console.log(sourceGeneName)
   var nameMatches = target.genes.filter(gene => {
     return gene.gene_id.id.toLowerCase() === sourceGeneName.toLowerCase();
   });
+  console.log('nameMatches')
+  console.log(nameMatches)
   if (nameMatches.length === 0) {
     return target.genes[0];
   } else {
@@ -130,21 +174,29 @@ async function getTarget(targets, gene) {
   var nameIndex = (splitName.length > 1) ? 1 : 0;
   var targetGeneName = splitName[nameIndex];
 
+  console.log('targetLocation')
+  console.log(targetLocation)
+  console.log('targetGeneName')
+  console.log(targetGeneName)
+
   return [targetLocation, targetGeneName];
 }
 
 async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
+  console.log('targetOrgs')
+  console.log(targetOrgs)
+
   var ortholog, ids, j, id, source, gene, scope, ids, sourceGene,
     hasSourceNameMatch = false,
     targets = [];
 
   // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
   // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
-  scope = "&level=2759&species=9606";
+  scope = "level=2759&species=" + taxidFromOrganismName(targetOrgs[0]);
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
-  ids = await fetchJson('/search?query=' + gene + '&' + scope);
+  ids = await fetchJson('search?query=' + gene + '&' + scope);
 
   // Iterate through returned ortholog IDs
   // Prefer orthologous pairs that have a gene name matching the queried gene
@@ -173,7 +225,7 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
     reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
   }
 
-  [targetLocation, targetGeneName] = getTarget(targets, gene);
+  var [targetLocation, targetGeneName] = await getTarget(targets, gene);
 
   // TODO:
   //  * Uncomment this when multi-target orthology support is implemented
