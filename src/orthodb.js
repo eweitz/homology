@@ -113,12 +113,9 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
     targets = [],
     hasSourceNameMatch = false;
 
-  const tOrg = targetOrgs[0];
-  console.log('tOrg')
-  console.log(tOrg)
-  const speciesParam = taxidFromOrganismName(tOrg);
-  console.log('speciesParam')
-  console.log(speciesParam)
+  const sourceTaxid = taxidFromOrganismName(sourceOrg);
+  const targetTaxid = taxidFromOrganismName(targetOrgs[0]);
+  const speciesParam = sourceTaxid + ',' + targetTaxid;
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
@@ -147,15 +144,9 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
 }
 
 function getTargetGene(target, sourceGeneName) {
-  console.log('target')
-  console.log(target)
-  console.log('sourceGeneName')
-  console.log(sourceGeneName)
   var nameMatches = target.genes.filter(gene => {
     return gene.gene_id.id.toLowerCase() === sourceGeneName.toLowerCase();
   });
-  console.log('nameMatches')
-  console.log(nameMatches)
   if (nameMatches.length === 0) {
     return target.genes[0];
   } else {
@@ -174,25 +165,20 @@ async function getTarget(targets, gene) {
   var nameIndex = (splitName.length > 1) ? 1 : 0;
   var targetGeneName = splitName[nameIndex];
 
-  console.log('targetLocation')
-  console.log(targetLocation)
-  console.log('targetGeneName')
-  console.log(targetGeneName)
-
   return [targetLocation, targetGeneName];
 }
 
 async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
-  console.log('targetOrgs')
-  console.log(targetOrgs)
-
   var ortholog, ids, j, id, source, gene, scope, ids, sourceGene,
     hasSourceNameMatch = false,
-    targets = [];
+    targets = [],
+    targetOrg = targetOrgs[0],
+    targetTaxid = taxidFromOrganismName(targetOrg),
+    sourceTaxid = taxidFromOrganismName(sourceOrg)
 
   // 2759 is the NCBI Taxonomy ID for Eukaryota (eukaryote)
   // https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=2759
-  scope = "level=2759&species=" + taxidFromOrganismName(targetOrgs[0]);
+  scope = "level=2759&species=" + targetTaxid + ',' + sourceTaxid;
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
