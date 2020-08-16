@@ -47,8 +47,8 @@ var limiter = new Bottleneck({
 // supports CORS.  This enables client-side web requests to the OrthoDB API.
 //
 // var orthodbBase = 'https://www.orthodb.org/';
-// var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb/';
-var orthodbBase = 'http://localhost:5000/orthodb/';
+var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb/';
+// var orthodbBase = 'http://localhost:5000/orthodb/';
 
 var apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
 
