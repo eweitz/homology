@@ -15,6 +15,7 @@ var taxidByName = {
   'aspergillus niger': '5061',
   'aspergillus oryzae': '5062',
   'brachypodium distachyon': '15368',
+  'caenorhabditis elegans': '6239',
   'canis lupus familiaris': '9615',
   'chlorocebus sabaeus': '60711',
   'ciona intestinalis': '7719',
