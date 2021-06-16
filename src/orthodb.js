@@ -8,34 +8,7 @@
 
 import Bottleneck from 'bottleneck';
 
-var taxidByName = {
-  'anopheles gambiae': '7165',
-  'arabidopsis thaliana': '3702',
-  'aspergillis fumigatus': '746128',
-  'aspergillus niger': '5061',
-  'aspergillus oryzae': '5062',
-  'brachypodium distachyon': '15368',
-  'caenorhabditis elegans': '6239',
-  'canis lupus familiaris': '9615',
-  'chlorocebus sabaeus': '60711',
-  'ciona intestinalis': '7719',
-  'drosophila melanogaster': '7227',
-  'felis catus': '9685',
-  'gallus gallus': '9031',
-  'gorilla gorilla': '9593',
-  'homo sapiens': '9606',
-  'hordeum vulgare': '4513',
-  'macaca fascicularis': '9541',
-  'macaca mulatta': '9544',
-  'mus musculus': '10090',
-  'musa acuminata': '4641',
-  'oryza sativa': '4530',
-  'pan paniscus': '9597',
-  'pan troglodytes': '9598',
-  'rattus norvegicus': '10116',
-  'zea mays': '4577'
-}
-
+import taxidByName from './organism-map';
 import {reportError} from './error';
 
 var limiter = new Bottleneck({
@@ -47,8 +20,9 @@ var limiter = new Bottleneck({
 // supports CORS.  This enables client-side web requests to the OrthoDB API.
 //
 // var orthodbBase = 'https://www.orthodb.org/';
-var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb/';
+// var orthodbBase = 'https://homology-api.firebaseapp.com/orthodb/';
 // var orthodbBase = 'http://localhost:5000/orthodb/';
+var orthodbBase = 'http://localhost:5001/homology-api/us-central1/app/orthodb/'
 
 var apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
 
@@ -59,10 +33,15 @@ var ncbiBase =
 /**
  * Get JSON response from OrthoDB API
  */
-async function fetchJson(path) {
+async function fetchJson(path, isRest=true) {
   var response = await fetch(orthodbBase + path);
   var json = await response.json();
-  return json.data;
+  if (isRest) {
+    return json.data;
+  } else {
+    return json;
+  }
+
 }
 
 /**
@@ -255,4 +234,24 @@ async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
   return Promise.all(tasks);
 }
 
-export default fetchOrthologsFromOrthodb;
+async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
+  const query =
+    'sparql/?query=prefix+%3A+%3Chttp%3A%2F%2Fpurl.orthodb.org%2F%3E%0D%0A' +
+    'select+*%0D%0A' +
+    'where+%7B%0D%0A' +
+    '%3Fog+a+%3AOrthoGroup.%0D%0A' +
+    '%3Fgene_m+a+%3AGene.%0D%0A' +
+    '%3Fgene_h+a+%3AGene.%0D%0A' +
+    '%3Fgene_m+up%3Aorganism%2Fa+taxon%3A10090.%0D%0A' +
+    '%3Fgene_h+up%3Aorganism%2Fa+taxon%3A9606.%0D%0A' +
+    '%3Fgene_m+%3AmemberOf+%3Fog.%0D%0A' +
+    '%3Fgene_h+%3AmemberOf+%3Fog.%0D%0A' +
+    '%3Fgene_m+%3Aname+%3Fgene_m_name.%0D%0A' +
+    '%3Fgene_h+%3Aname+%3Fgene_h_name.%0D%0A' +
+    'filter+%28regex%28%3Fgene_m_name%2C+%22%5E%28RAD51%7CDMC1%29%24%22%2C+%22i%22%29%29%0D%0A' +
+    '%7D';
+  const json = await fetchJson(query, false);
+  console.log('sparql json:', json);
+}
+
+export {fetchOrthologsFromOrthodb, fetchOrthologsFromOrthodbSparql};
