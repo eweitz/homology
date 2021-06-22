@@ -10,6 +10,7 @@ import Bottleneck from 'bottleneck';
 
 import taxidByName from './organism-map';
 import {reportError} from './error';
+import {fetchLocationsFromMyGeneInfo} from './lib';
 
 var limiter = new Bottleneck({
   minTime: 333,
@@ -215,17 +216,17 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
 /**
  * Get genomic locations of orthologs from OrthoDB
  *
- * For a gene in a source organism, find orthologs in target organisms and
+ * For genes in a source organism, find orthologs in target organisms and
  * return the genomic coordinates of the source gene and orthologous genes.
  *
  * Example:
  * fetchOrthologsFromOrthodb(
- *  'NFYA',
+ *  ['NFYA'],
  *  'homo-sapiens',
  *  ['caenorhabditis-elegans']
  * );
  *
- * @param {String} gene Gene name
+ * @param {Array} genes Gene name
  * @param {String} sourceOrg Source organism name
  * @param {Array<String>} targetOrgs List of target organism names
  */
@@ -234,24 +235,80 @@ async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
   return Promise.all(tasks);
 }
 
+/** Deduplicates gene names in a list of results from SPARQL query */
+function getOrthologNameMap(genes, sparqlJson) {
+
+  const orthologMap = {}
+  genes.forEach(gene => orthologMap[gene] = [])
+
+  sparqlJson.results.bindings.forEach(result => {
+    const source = result.gene_s_name.value;
+    const target = result.gene_t_name.value;
+    if (!orthologMap[source].includes(target)) {
+      orthologMap[source].push(target)
+    }
+  })
+
+  return orthologMap
+}
+
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
+  const genesClause = genes.join('%7C') // URL encoding for | (i.e. OR)
+
+  // TODO: Support multiple target organisms
+  const sourceTaxid = taxidByName[sourceOrg]
+  const targetTaxid = taxidByName[targetOrgs[0]]
+
+  console.log('sourceOrg', sourceOrg)
+
   const query =
     'sparql/?query=prefix+%3A+%3Chttp%3A%2F%2Fpurl.orthodb.org%2F%3E%0D%0A' +
     'select+*%0D%0A' +
     'where+%7B%0D%0A' +
     '%3Fog+a+%3AOrthoGroup.%0D%0A' +
-    '%3Fgene_m+a+%3AGene.%0D%0A' +
-    '%3Fgene_h+a+%3AGene.%0D%0A' +
-    '%3Fgene_m+up%3Aorganism%2Fa+taxon%3A10090.%0D%0A' +
-    '%3Fgene_h+up%3Aorganism%2Fa+taxon%3A9606.%0D%0A' +
-    '%3Fgene_m+%3AmemberOf+%3Fog.%0D%0A' +
-    '%3Fgene_h+%3AmemberOf+%3Fog.%0D%0A' +
-    '%3Fgene_m+%3Aname+%3Fgene_m_name.%0D%0A' +
-    '%3Fgene_h+%3Aname+%3Fgene_h_name.%0D%0A' +
-    'filter+%28regex%28%3Fgene_m_name%2C+%22%5E%28RAD51%7CDMC1%29%24%22%2C+%22i%22%29%29%0D%0A' +
+    '%3Fgene_s+a+%3AGene.%0D%0A' + // source gene
+    '%3Fgene_t+a+%3AGene.%0D%0A' + // target gene
+    `%3Fgene_s+up%3Aorganism%2Fa+taxon%3A${sourceTaxid}.%0D%0A` +
+    `%3Fgene_t+up%3Aorganism%2Fa+taxon%3A${targetTaxid}.%0D%0A` +
+    '%3Fgene_s+%3AmemberOf+%3Fog.%0D%0A' +
+    '%3Fgene_t+%3AmemberOf+%3Fog.%0D%0A' +
+    '%3Fgene_s+%3Aname+%3Fgene_s_name.%0D%0A' +
+    '%3Fgene_t+%3Aname+%3Fgene_t_name.%0D%0A' +
+    `filter+%28regex%28%3Fgene_s_name%2C+%22%5E%28${genesClause}%29%24%22%2C+%22i%22%29%29%0D%0A` +
     '%7D';
-  const json = await fetchJson(query, false);
-  console.log('sparql json:', json);
+  const sparqlJson = await fetchJson(query, false);
+  console.log('sparql json:', sparqlJson);
+
+  const orthologNameMap = getOrthologNameMap(genes, sparqlJson);
+
+  console.log('orthologNameMap: ', orthologNameMap)
+
+  const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
+
+  let targetGenes = []
+  Object.values(orthologNameMap).forEach(genes => {
+    targetGenes = targetGenes.concat(genes)
+  })
+
+  const orthologs = []
+
+  const targetLocations =
+    await fetchLocationsFromMyGeneInfo(targetGenes, targetTaxid);
+
+  Object.entries(orthologNameMap).forEach(([sourceGene, targetGenes], i) => {
+    const ortholog = []
+    const sourceLocation = sourceLocations[i].location
+    const source = {gene: sourceGene, location: sourceLocation}
+    ortholog.push(source)
+    targetGenes.forEach((targetGene, j) => {
+      const targetLocation = targetLocations[j + i*j].location
+      const target = {gene: targetGene, location: targetLocation}
+      ortholog.push(target)
+    })
+    orthologs.push(ortholog)
+  })
+
+  return orthologs
 }
 
 export {fetchOrthologsFromOrthodb, fetchOrthologsFromOrthodbSparql};
