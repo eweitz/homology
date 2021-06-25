@@ -252,6 +252,20 @@ function getOrthologNameMap(genes, sparqlJson) {
   return orthologMap
 }
 
+/**
+ * Sort orthologs by name similarity to source gene
+ *
+ * A given gene (source gene) can have multiple target genes (orthologs).
+ *
+ */
+function sortTargetGenes(sourceGene, targetGenes) {
+  const sourceGeneLower = sourceGene.toLowerCase()
+  return targetGenes.sort((a, b) => {
+    if (a.toLowerCase() === sourceGeneLower) return -1
+    if (b.toLowerCase() === sourceGeneLower) return 1
+  })
+}
+
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const genesClause = genes.join('%7C') // URL encoding for | (i.e. OR)
 
@@ -285,23 +299,29 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
   const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
 
+  console.log('sourceLocations', sourceLocations)
+
   let targetGenes = []
-  Object.values(orthologNameMap).forEach(genes => {
-    targetGenes = targetGenes.concat(genes)
+  Object.entries(orthologNameMap).forEach(([source, targets]) => {
+    const sortedTargets = sortTargetGenes(source, targets)
+    targetGenes = targetGenes.concat(sortedTargets)
   })
 
   const orthologs = []
 
   const targetLocations =
-    await fetchLocationsFromMyGeneInfo(targetGenes, targetTaxid);
+    await fetchLocationsFromMyGeneInfo(targetGenes, targetTaxid)
 
-  Object.entries(orthologNameMap).forEach(([sourceGene, targetGenes], i) => {
+  Object.entries(orthologNameMap).forEach(([sourceGene, targetGenes]) => {
     const ortholog = []
-    const sourceLocation = sourceLocations[i].location
+    const sourceLocation =
+      sourceLocations.find(sl => sl.name === sourceGene).location
     const source = {gene: sourceGene, location: sourceLocation}
     ortholog.push(source)
-    targetGenes.forEach((targetGene, j) => {
-      const targetLocation = targetLocations[j + i*j].location
+    targetGenes.forEach(targetGene => {
+      const targetLocation =
+        targetLocations.filter(tl => tl.name === targetGene)[0].location
+
       const target = {gene: targetGene, location: targetLocation}
       ortholog.push(target)
     })
