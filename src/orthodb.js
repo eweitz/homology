@@ -239,13 +239,16 @@ async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
 function getOrthologNameMap(genes, sparqlJson) {
 
   const orthologMap = {}
+  const seenTargetNames = {}
   genes.forEach(gene => orthologMap[gene] = [])
 
   sparqlJson.results.bindings.forEach(result => {
     const source = result.gene_s_name.value;
-    const target = result.gene_t_name.value;
-    if (!orthologMap[source].includes(target)) {
-      orthologMap[source].push(target)
+    const targetName = result.gene_t_name.value;
+    const targetUrl = result.gene_t.value;
+    if (!seenTargetNames[source].includes(targetName)) {
+      seenTargetNames[source] = targetName
+      orthologMap[source].push({name: targetName, url: targetUrl})
     }
   })
 
@@ -261,8 +264,8 @@ function getOrthologNameMap(genes, sparqlJson) {
 function sortTargetGenes(sourceGene, targetGenes) {
   const sourceGeneLower = sourceGene.toLowerCase()
   return targetGenes.sort((a, b) => {
-    if (a.toLowerCase() === sourceGeneLower) return -1
-    if (b.toLowerCase() === sourceGeneLower) return 1
+    if (a.name.toLowerCase() === sourceGeneLower) return -1
+    if (b.name.toLowerCase() === sourceGeneLower) return 1
   })
 }
 
@@ -320,13 +323,17 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     ortholog.push(source)
     targetGenes.forEach(targetGene => {
       const targetLocation =
-        targetLocations.filter(tl => tl.name === targetGene)[0].location
+        targetLocations.find(tl => tl.name === targetGene)
 
-      const target = {gene: targetGene, location: targetLocation}
+      if (!targetLocation) { console.log('oops', sourceGene, targetGene, targetLocations)}
+
+      const target = {gene: targetGene, location: targetLocation.location}
       ortholog.push(target)
     })
     orthologs.push(ortholog)
   })
+
+  console.log(orthologs)
 
   return orthologs
 }

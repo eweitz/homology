@@ -53,7 +53,11 @@
 export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
   const annots = [];
   const qParam = genes.map(gene => {
-    return `symbol:${gene}`;
+    // Escape genes, so e.g. the fly gene Su(H) becomes Su\(H\).
+    // https://mygene.info/v3/query?q=symbol:Su\(H\)&species=7227&fields=symbol,genomic_pos,name&size=20
+    // See https://github.com/biothings/mygene.info/issues/112.
+    const escapedGene = gene.replaceAll('(', '\\(').replaceAll(')', '\\)')
+    return `symbol:${escapedGene}`;
   }).join(' OR ');
 
   // Example:
