@@ -1,3 +1,5 @@
+import {fetchOrthoDBJson} from './orthodb'
+
 /**
  * Queries MyGene.info API, returns parsed JSON
  *
@@ -19,22 +21,19 @@
  */
  function parseAnnotFromMgiGene(gene) {
 
-  // TODO: Handle below
-  // // Filters out placements on alternative loci scaffolds, an advanced
-  // // genome assembly feature we are not concerned with in ideograms.
-  // //
-  // // Example:
-  // // https://mygene.info/v3/query?q=symbol:PTPRC&species=9606&fields=symbol,genomic_pos,name
-  // let genomicPos = null;
-  // if (Array.isArray(gene.genomic_pos)) {
-  //   genomicPos = gene.genomic_pos.filter(pos => {
-  //     return pos.chr in ideo.chromosomes[ideo.config.taxid];
-  //   })[0];
-  // } else {
-  //   genomicPos = gene.genomic_pos;
-  // }
 
-  const genomicPos = gene.genomic_pos;
+  console.log('in parseAnnotFromMgiGene, gene:', gene)
+  // Filters out placements on alternative loci scaffolds, an advanced
+  // genome assembly feature we are not concerned with in ideograms.
+  //
+  // Example:
+  // https://mygene.info/v3/query?q=symbol:PTPRC&species=9606&fields=symbol,genomic_pos,name
+  let genomicPos = null;
+  if (Array.isArray(gene.genomic_pos)) {
+    genomicPos = gene.genomic_pos.filter(pos => !pos.chr.includes('_'))[0];
+  } else {
+    genomicPos = gene.genomic_pos;
+  }
 
   const annot = {
     name: gene.symbol,
@@ -49,25 +48,54 @@
   return annot;
 }
 
-/** Fetch gene positions from MyGene.info API */
-export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
-  const annots = [];
+function getMyGeneInfoQueryString(genes, taxid) {
   const qParam = genes.map(gene => {
+    if (gene.ensemblId) {
+      return `ensemblgene:${gene.ensemblId}`
+    } else {
     // Escape genes, so e.g. the fly gene Su(H) becomes Su\(H\).
     // https://mygene.info/v3/query?q=symbol:Su\(H\)&species=7227&fields=symbol,genomic_pos,name&size=20
     // See https://github.com/biothings/mygene.info/issues/112.
+    if (gene.name) gene = gene.name
     const escapedGene = gene.replaceAll('(', '\\(').replaceAll(')', '\\)')
     return `symbol:${escapedGene}`;
+    }
   }).join(' OR ');
 
   // Example:
   // https://mygene.info/v3/query?q=symbol:BRCA1&species=9606&fields=symbol,genomic_pos,name
-  const queryString =
-    `?q=${qParam}&species=${taxid}&fields=symbol,genomic_pos,name`;
-  const data = await fetchMyGeneInfo(queryString);
+  return `?q=${qParam}&species=${taxid}&fields=symbol,genomic_pos,name`;
+}
+
+/** Fetch gene positions from MyGene.info API */
+export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
+  const annots = [];
+
+  let queryString = getMyGeneInfoQueryString(genes, taxid)
+  const initialData = await fetchMyGeneInfo(queryString);
+
+  let data = initialData
+
+  console.log('data', data)
+
+  if (data.hits.length === 0) {
+
+    // E.g. http://purl.orthodb.org/odbgene/6239_0_000f12 -> 6239_0:000f12
+    const splitId = genes[0].url.split('/').slice(-1)[0].split('_')
+    const orthodbGeneId = splitId[0] + '_' + splitId[1] + ':' + splitId[2]
+
+    // Example:
+    // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
+    const ogDetails = await fetchOrthoDBJson('ogdetails?id=' + orthodbGeneId)
+    console.log('ogDetails', ogDetails)
+    const ensemblId = ogDetails.ensembl[0].id
+    queryString = `?q=ensemblgene:${ensemblId}&fields=symbol,genomic_pos,name`;
+    data = await fetchMyGeneInfo(queryString);
+    data.hits[0].symbol = genes[0].name
+  }
 
   data.hits.forEach(gene => {
-
+    console.log('gene', gene)
     // If hit lacks position, skip processing
     if ('genomic_pos' in gene === false) return;
     if ('name' in gene === false) return;

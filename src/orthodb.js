@@ -34,7 +34,7 @@ var ncbiBase =
 /**
  * Get JSON response from OrthoDB API
  */
-async function fetchJson(path, isRest=true) {
+export async function fetchOrthoDBJson(path, isRest=true) {
   var response = await fetch(orthodbBase + path);
   var json = await response.json();
   if (isRest) {
@@ -42,7 +42,6 @@ async function fetchJson(path, isRest=true) {
   } else {
     return json;
   }
-
 }
 
 /**
@@ -66,7 +65,7 @@ async function fetchLocation(orthodbGene) {
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
-  ogDetails = await fetchJson('ogdetails?id=' + orthodbGeneId);
+  ogDetails = await fetchOrthoDBJson('ogdetails?id=' + orthodbGeneId);
 
   if ('entrez' in ogDetails) {
     ncbiGeneId = ogDetails.entrez[0].id;
@@ -100,7 +99,7 @@ async function findBestOrtholog(orthologId, gene, sourceOrg, targetOrgs) {
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/orthologs?id=1269806at2759&species=all
-  rawOrthologs = await fetchJson(`orthologs?id=${orthologId}&species=${speciesParam}`);
+  rawOrthologs = await fetchOrthoDBJson(`orthologs?id=${orthologId}&species=${speciesParam}`);
 
   rawOrthologs.forEach(rawOrtholog => {
 
@@ -135,6 +134,14 @@ function getTargetGene(target, sourceGeneName) {
   }
 }
 
+/**
+ * E.g. http://purl.orthodb.org/odbgene/6239_0_000f12 -> 6239_0:000f12
+ */
+function getOrthoDBId(url) {
+  const splitId = url.split('/').slice(-1)[0].split('_')
+  return splitId[0] + '_' + splitId[1] + ':' + splitId[2]
+}
+
 async function getTarget(targets, gene) {
   // TODO: Return 1-to-many mappings
   // Example with many target hits this (over)simplifies:
@@ -163,7 +170,7 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
 
   // Example:
   // https://homology-api.firebaseapp.com/orthodb/search?query=NFYA&level=2759&species=2759
-  ids = await fetchJson('search?query=' + gene + '&' + scope);
+  ids = await fetchOrthoDBJson('search?query=' + gene + '&' + scope);
 
   // Iterate through returned ortholog IDs
   // Prefer orthologous pairs that have a gene name matching the queried gene
@@ -236,19 +243,23 @@ async function fetchOrthologsFromOrthodb(genes, sourceOrg, targetOrgs) {
 }
 
 /** Deduplicates gene names in a list of results from SPARQL query */
-function getOrthologNameMap(genes, sparqlJson) {
+function getOrthologMap(genes, sparqlJson) {
 
   const orthologMap = {}
   const seenTargetNames = {}
-  genes.forEach(gene => orthologMap[gene] = [])
+  genes.forEach(gene => {
+    seenTargetNames[gene] = []
+    orthologMap[gene] = []
+  })
 
   sparqlJson.results.bindings.forEach(result => {
     const source = result.gene_s_name.value;
-    const targetName = result.gene_t_name.value;
-    const targetUrl = result.gene_t.value;
-    if (!seenTargetNames[source].includes(targetName)) {
-      seenTargetNames[source] = targetName
-      orthologMap[source].push({name: targetName, url: targetUrl})
+    const name = result.gene_t_name.value;
+    const url = result.gene_t.value;
+    const id = getOrthoDBId(url)
+    if (!seenTargetNames[source].includes(name)) {
+      seenTargetNames[source].push(name)
+      orthologMap[source].push({name, url, id})
     }
   })
 
@@ -267,6 +278,30 @@ function sortTargetGenes(sourceGene, targetGenes) {
     if (a.name.toLowerCase() === sourceGeneLower) return -1
     if (b.name.toLowerCase() === sourceGeneLower) return 1
   })
+}
+
+/** Add Ensembl IDs to target genes in an ortholog map */
+async function addEnsemblIds(orthologMap) {
+  const updatedMap = {}
+
+  await Promise.all(
+    Object.entries(orthologMap).map(async ([source, targets]) => {
+      const targetPromises = targets.map(async target => {
+        const ogDetails = await fetchOrthoDBJson('ogdetails?id=' + target.id);
+        if (ogDetails.ensembl) {
+          const ensemblId = ogDetails.ensembl[0].id
+          target.ensemblId = ensemblId
+        }
+        return target
+      })
+
+      const updatedTargets = await Promise.all(targetPromises)
+
+      updatedMap[source] = updatedTargets
+    })
+  )
+
+  return updatedMap
 }
 
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
@@ -293,19 +328,23 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     '%3Fgene_t+%3Aname+%3Fgene_t_name.%0D%0A' +
     `filter+%28regex%28%3Fgene_s_name%2C+%22%5E%28${genesClause}%29%24%22%2C+%22i%22%29%29%0D%0A` +
     '%7D';
-  const sparqlJson = await fetchJson(query, false);
+  const sparqlJson = await fetchOrthoDBJson(query, false);
   console.log('sparql json:', sparqlJson);
 
-  const orthologNameMap = getOrthologNameMap(genes, sparqlJson);
+  let orthologMap = getOrthologMap(genes, sparqlJson);
 
-  console.log('orthologNameMap: ', orthologNameMap)
+  console.log('orthologMap, before addEnsemblIds: ', orthologMap)
+
+  orthologMap = await addEnsemblIds(orthologMap)
+
+  console.log('orthologMap, after addEnsemblIds: ', orthologMap)
 
   const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
 
   console.log('sourceLocations', sourceLocations)
 
   let targetGenes = []
-  Object.entries(orthologNameMap).forEach(([source, targets]) => {
+  Object.entries(orthologMap).forEach(([source, targets]) => {
     const sortedTargets = sortTargetGenes(source, targets)
     targetGenes = targetGenes.concat(sortedTargets)
   })
@@ -315,19 +354,22 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const targetLocations =
     await fetchLocationsFromMyGeneInfo(targetGenes, targetTaxid)
 
-  Object.entries(orthologNameMap).forEach(([sourceGene, targetGenes]) => {
+  Object.entries(orthologMap).forEach(([sourceGene, targetGenes]) => {
     const ortholog = []
     const sourceLocation =
       sourceLocations.find(sl => sl.name === sourceGene).location
+    console.log('sourceLocations', sourceLocations)
     const source = {gene: sourceGene, location: sourceLocation}
     ortholog.push(source)
+    console.log('source', source)
     targetGenes.forEach(targetGene => {
-      const targetLocation =
-        targetLocations.find(tl => tl.name === targetGene)
+      const targetName = targetGene.name
+      let targetLocation =
+        targetLocations.find(tl => tl.name === targetName)
 
-      if (!targetLocation) { console.log('oops', sourceGene, targetGene, targetLocations)}
+      if (!targetLocation) { targetLocation = targetLocations[0]}
 
-      const target = {gene: targetGene, location: targetLocation.location}
+      const target = {gene: targetName, location: targetLocation.location}
       ortholog.push(target)
     })
     orthologs.push(ortholog)
