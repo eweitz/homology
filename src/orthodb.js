@@ -276,37 +276,57 @@ function getOrthologMap(genes, sparqlJson) {
  * A given gene (source gene) can have multiple target genes (orthologs).
  *
  */
-function sortTargetGenes(sourceGene, targetGenes) {
-  console.log('sourceGene, targetGenes', sourceGene, targetGenes)
+function sortTargetGenes(targetGenes, sourceGene, sources) {
+  console.log('targetGenes, sourceGene, sources', targetGenes, sourceGene, sources)
+  const source = sources[sourceGene]
   sourceGene = sourceGene.toLowerCase()
   return targetGenes.sort((a, b) => {
     const geneA = a.name.toLowerCase()
     const geneB = b.name.toLowerCase()
-    if (geneA !== sourceGene && geneB !== sourceGene) {
 
-    }
     if (geneA === sourceGene) return -1
     if (geneB === sourceGene) return 1
+
+    if (a.exons !== b.exons) {
+      if (a.exons == source.exons) return -1
+      if (b.exons == source.exons) return 1
+    }
+
+    if (geneA !== sourceGene && geneB !== sourceGene) {
+      const aDomains = a.domains.length
+      const bDomains = b.domains.length
+      const sourceDomains = source.domains.length
+
+      if (aDomains === sourceDomains) return -1
+      if (bDomains === sourceDomains) return 1
+
+      const aDiff = Math.abs(aDomains - sourceDomains)
+      const bDiff = Math.abs(bDomains - sourceDomains)
+      if (aDiff < bDiff) return -1
+      if (aDiff > bDiff) return 1
+    }
   })
 }
 
 /**
- * Add Ensembl ID, # amino acids, and # exons to a gene.
+ * Add Ensembl ID, domains, # amino acids, # exons to a gene.
  */
 async function enrichGene(gene) {
   const ogDetails = await fetchOrthoDBJson('ogdetails?id=' + gene.id);
   console.log('ogDetails for gene', ogDetails)
   if (ogDetails.ensembl) {
     gene.ensemblId = ogDetails.ensembl[0].id
-    gene.aas = ogDetails.aas // length in amino acids
-    gene.exons = ogDetails.exons // number of exons
   }
+
+  gene.aas = ogDetails.aas // length in amino acids
+  gene.exons = ogDetails.exons // number of exons
+  gene.domains = ogDetails.interpro
 
   return gene
 }
 
 /**
- * Add Ensembl IDs, # amino acids, and # exons to source and target genes.
+ * Add Ensembl ID, domains, # amino acids, # exons to source and target genes.
  */
 async function enrichMap(orthologMap, sources) {
   const enrichedMap = {}
@@ -318,19 +338,24 @@ async function enrichMap(orthologMap, sources) {
     Object.entries(orthologMap).map(async ([sourceName, targets]) => {
       const enrichedSource = await enrichGene(sources[sourceName])
       console.log('sources, sourceName, enrichedSource', sources, sourceName, enrichedSource)
-      enrichedSource[sourceName] = enrichedSource
+      enrichedSources[sourceName] = enrichedSource
 
       // Parallelize OrthoDB REST API requests
       const promises = targets.map(async target => await enrichGene(target))
       const enrichedTargets = await Promise.all(promises)
 
+      console.log('enrichedTargets', enrichedTargets)
+
       enrichedMap[sourceName] = enrichedTargets
     })
   )
 
-  console.log('enrichedSources', enrichedSources)
+  orthologMap = enrichedMap
+  sources = enrichedSources
 
-  return {enrichedMap, enrichedSources}
+  console.log('after await Promise.all')
+
+  return {orthologMap, sources}
 }
 
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
@@ -362,11 +387,11 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
   let {orthologMap, sources} = getOrthologMap(genes, sparqlJson);
 
-  console.log('orthologMap, sources, before addEnsemblIds: ', orthologMap, sources)
+  // console.log('orthologMap, sources, before addEnsemblIds: ', orthologMap, sources)
 
-  orthologMap, sources = await enrichMap(orthologMap, sources)
+  ({orthologMap, sources} = await enrichMap(orthologMap, sources))
 
-  console.log('orthologMap, after enrichMap: ', enrichMap)
+  console.log('orthologMap, sources after enrichMap: ', orthologMap, sources)
 
   const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
 
@@ -384,7 +409,7 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     const ortholog = []
 
     console.log('targets, unsorted', targetGenes)
-    targetGenes = sortTargetGenes(sourceGene, targetGenes)
+    targetGenes = sortTargetGenes(targetGenes, sourceGene, sources)
     console.log('targets, sorted', targetGenes)
 
     const sourceLocation =

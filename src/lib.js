@@ -21,7 +21,7 @@ import {fetchOrthoDBJson} from './orthodb'
  */
  function parseAnnotFromMgiGene(gene) {
 
-  console.log('in parseAnnotFromMgiGene, gene:', gene)
+  // console.log('in parseAnnotFromMgiGene, gene:', gene)
   // Filters out placements on alternative loci scaffolds, an advanced
   // genome assembly feature we are not concerned with in ideograms.
   //
@@ -85,7 +85,7 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
 
     const annot = parseAnnotFromMgiGene(gene);
     annots.push(annot);
-    console.log('gene, length:', gene, annot.stop - annot.start)
+    // console.log('gene, length:', gene, annot.stop - annot.start)
   });
 
   return annots;
