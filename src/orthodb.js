@@ -252,12 +252,12 @@ function getOrthologMap(genes, sparqlJson) {
     orthologMap[gene] = []
   })
 
-  const sourceIds = {}
+  const sources = {}
 
   sparqlJson.results.bindings.forEach(result => {
     const source = result.gene_s_name.value
-    const sourceId = getOrthoDBId(result.gene_t.value)
-    if (orthologMap[source].length > 0) sourceIds[source] = {id: sourceId}
+    const sourceId = getOrthoDBId(result.gene_s.value)
+    if (orthologMap[source].length > 0) sources[source] = {id: sourceId}
 
     const name = result.gene_t_name.value;
     const id = getOrthoDBId(result.gene_t.value)
@@ -267,7 +267,7 @@ function getOrthologMap(genes, sparqlJson) {
     }
   })
 
-  return {orthologMap, sourceIds}
+  return {orthologMap, sources}
 }
 
 /**
@@ -301,33 +301,36 @@ async function enrichGene(gene) {
     gene.aas = ogDetails.aas // length in amino acids
     gene.exons = ogDetails.exons // number of exons
   }
+
+  return gene
 }
 
 /**
  * Add Ensembl IDs, # amino acids, and # exons to source and target genes.
  */
-async function enrichMap(orthologMap, sourceIds) {
-  const updatedMap = {}
-  const updatedSources = {}
+async function enrichMap(orthologMap, sources) {
+  const enrichedMap = {}
+  const enrichedSources = {}
 
   // Parallelizes as described in https://medium.com/@antonioval/6315c3225838
   // (but without library advertised there).
   await Promise.all(
     Object.entries(orthologMap).map(async ([sourceName, targets]) => {
-      const source = sourceIds[sourceName]
-      updatedSources[sourceName] = await enrichGene(source)
+      const enrichedSource = await enrichGene(sources[sourceName])
+      console.log('sources, sourceName, enrichedSource', sources, sourceName, enrichedSource)
+      enrichedSource[sourceName] = enrichedSource
 
       // Parallelize OrthoDB REST API requests
       const promises = targets.map(async target => await enrichGene(target))
-      const updatedTargets = await Promise.all(promises)
+      const enrichedTargets = await Promise.all(promises)
 
-      updatedMap[source] = updatedTargets
+      enrichedMap[sourceName] = enrichedTargets
     })
   )
 
-  console.log('updatedSources', updatedSources)
+  console.log('enrichedSources', enrichedSources)
 
-  return {updatedMap, updatedSources}
+  return {enrichedMap, enrichedSources}
 }
 
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
@@ -357,11 +360,11 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const sparqlJson = await fetchOrthoDBJson(query, false);
   console.log('sparql json:', sparqlJson);
 
-  let {orthologMap, sourceIds} = getOrthologMap(genes, sparqlJson);
+  let {orthologMap, sources} = getOrthologMap(genes, sparqlJson);
 
-  console.log('orthologMap, before addEnsemblIds: ', orthologMap)
+  console.log('orthologMap, sources, before addEnsemblIds: ', orthologMap, sources)
 
-  orthologMap, sourceIds = await enrichMap(orthologMap, sourceIds)
+  orthologMap, sources = await enrichMap(orthologMap, sources)
 
   console.log('orthologMap, after enrichMap: ', enrichMap)
 
