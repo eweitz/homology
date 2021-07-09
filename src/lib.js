@@ -21,7 +21,6 @@ import {fetchOrthoDBJson} from './orthodb'
  */
  function parseAnnotFromMgiGene(gene) {
 
-
   console.log('in parseAnnotFromMgiGene, gene:', gene)
   // Filters out placements on alternative loci scaffolds, an advanced
   // genome assembly feature we are not concerned with in ideograms.
@@ -64,7 +63,7 @@ function getMyGeneInfoQueryString(genes, taxid) {
 
   // Example:
   // https://mygene.info/v3/query?q=symbol:BRCA1&species=9606&fields=symbol,genomic_pos,name
-  return `?q=${qParam}&species=${taxid}&fields=symbol,genomic_pos,name`;
+  return `?q=${qParam}&species=${taxid}&fields=symbol,genomic_pos,name,exons`;
 }
 
 /** Fetch gene positions from MyGene.info API */
@@ -78,22 +77,6 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
 
   console.log('data', data)
 
-  if (data.hits.length === 0) {
-
-    // E.g. http://purl.orthodb.org/odbgene/6239_0_000f12 -> 6239_0:000f12
-    const splitId = genes[0].url.split('/').slice(-1)[0].split('_')
-    const orthodbGeneId = splitId[0] + '_' + splitId[1] + ':' + splitId[2]
-
-    // Example:
-    // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
-    const ogDetails = await fetchOrthoDBJson('ogdetails?id=' + orthodbGeneId)
-    console.log('ogDetails', ogDetails)
-    const ensemblId = ogDetails.ensembl[0].id
-    queryString = `?q=ensemblgene:${ensemblId}&fields=symbol,genomic_pos,name`;
-    data = await fetchMyGeneInfo(queryString);
-    data.hits[0].symbol = genes[0].name
-  }
-
   data.hits.forEach(gene => {
     console.log('gene', gene)
     // If hit lacks position, skip processing
@@ -102,6 +85,7 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
 
     const annot = parseAnnotFromMgiGene(gene);
     annots.push(annot);
+    console.log('gene, length:', gene, annot.stop - annot.start)
   });
 
   return annots;

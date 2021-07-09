@@ -252,18 +252,22 @@ function getOrthologMap(genes, sparqlJson) {
     orthologMap[gene] = []
   })
 
+  const sourceIds = {}
+
   sparqlJson.results.bindings.forEach(result => {
-    const source = result.gene_s_name.value;
+    const source = result.gene_s_name.value
+    const sourceId = getOrthoDBId(result.gene_t.value)
+    if (orthologMap[source].length > 0) sourceIds[source] = {id: sourceId}
+
     const name = result.gene_t_name.value;
-    const url = result.gene_t.value;
-    const id = getOrthoDBId(url)
+    const id = getOrthoDBId(result.gene_t.value)
     if (!seenTargetNames[source].includes(name)) {
       seenTargetNames[source].push(name)
-      orthologMap[source].push({name, url, id})
+      orthologMap[source].push({name, id})
     }
   })
 
-  return orthologMap
+  return {orthologMap, sourceIds}
 }
 
 /**
@@ -273,35 +277,57 @@ function getOrthologMap(genes, sparqlJson) {
  *
  */
 function sortTargetGenes(sourceGene, targetGenes) {
-  const sourceGeneLower = sourceGene.toLowerCase()
+  console.log('sourceGene, targetGenes', sourceGene, targetGenes)
+  sourceGene = sourceGene.toLowerCase()
   return targetGenes.sort((a, b) => {
-    if (a.name.toLowerCase() === sourceGeneLower) return -1
-    if (b.name.toLowerCase() === sourceGeneLower) return 1
+    const geneA = a.name.toLowerCase()
+    const geneB = b.name.toLowerCase()
+    if (geneA !== sourceGene && geneB !== sourceGene) {
+
+    }
+    if (geneA === sourceGene) return -1
+    if (geneB === sourceGene) return 1
   })
 }
 
-/** Add Ensembl IDs to target genes in an ortholog map */
-async function addEnsemblIds(orthologMap) {
+/**
+ * Add Ensembl ID, # amino acids, and # exons to a gene.
+ */
+async function enrichGene(gene) {
+  const ogDetails = await fetchOrthoDBJson('ogdetails?id=' + gene.id);
+  console.log('ogDetails for gene', ogDetails)
+  if (ogDetails.ensembl) {
+    gene.ensemblId = ogDetails.ensembl[0].id
+    gene.aas = ogDetails.aas // length in amino acids
+    gene.exons = ogDetails.exons // number of exons
+  }
+}
+
+/**
+ * Add Ensembl IDs, # amino acids, and # exons to source and target genes.
+ */
+async function enrichMap(orthologMap, sourceIds) {
   const updatedMap = {}
+  const updatedSources = {}
 
+  // Parallelizes as described in https://medium.com/@antonioval/6315c3225838
+  // (but without library advertised there).
   await Promise.all(
-    Object.entries(orthologMap).map(async ([source, targets]) => {
-      const targetPromises = targets.map(async target => {
-        const ogDetails = await fetchOrthoDBJson('ogdetails?id=' + target.id);
-        if (ogDetails.ensembl) {
-          const ensemblId = ogDetails.ensembl[0].id
-          target.ensemblId = ensemblId
-        }
-        return target
-      })
+    Object.entries(orthologMap).map(async ([sourceName, targets]) => {
+      const source = sourceIds[sourceName]
+      updatedSources[sourceName] = await enrichGene(source)
 
-      const updatedTargets = await Promise.all(targetPromises)
+      // Parallelize OrthoDB REST API requests
+      const promises = targets.map(async target => await enrichGene(target))
+      const updatedTargets = await Promise.all(promises)
 
       updatedMap[source] = updatedTargets
     })
   )
 
-  return updatedMap
+  console.log('updatedSources', updatedSources)
+
+  return {updatedMap, updatedSources}
 }
 
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
@@ -331,31 +357,33 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const sparqlJson = await fetchOrthoDBJson(query, false);
   console.log('sparql json:', sparqlJson);
 
-  let orthologMap = getOrthologMap(genes, sparqlJson);
+  let {orthologMap, sourceIds} = getOrthologMap(genes, sparqlJson);
 
   console.log('orthologMap, before addEnsemblIds: ', orthologMap)
 
-  orthologMap = await addEnsemblIds(orthologMap)
+  orthologMap, sourceIds = await enrichMap(orthologMap, sourceIds)
 
-  console.log('orthologMap, after addEnsemblIds: ', orthologMap)
+  console.log('orthologMap, after enrichMap: ', enrichMap)
 
   const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
 
-  console.log('sourceLocations', sourceLocations)
-
-  let targetGenes = []
+  let rawTargets = []
   Object.entries(orthologMap).forEach(([source, targets]) => {
-    const sortedTargets = sortTargetGenes(source, targets)
-    targetGenes = targetGenes.concat(sortedTargets)
+    rawTargets = rawTargets.concat(targets)
   })
+
+  const targetLocations =
+    await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
 
   const orthologs = []
 
-  const targetLocations =
-    await fetchLocationsFromMyGeneInfo(targetGenes, targetTaxid)
-
   Object.entries(orthologMap).forEach(([sourceGene, targetGenes]) => {
     const ortholog = []
+
+    console.log('targets, unsorted', targetGenes)
+    targetGenes = sortTargetGenes(sourceGene, targetGenes)
+    console.log('targets, sorted', targetGenes)
+
     const sourceLocation =
       sourceLocations.find(sl => sl.name === sourceGene).location
     console.log('sourceLocations', sourceLocations)
