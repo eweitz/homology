@@ -255,13 +255,25 @@ function getOrthologMap(genes, sparqlJson) {
   const sources = {}
 
   sparqlJson.results.bindings.forEach(result => {
-    const source = result.gene_s_name.value
+    const rawSource = result.gene_s_name.value
+    let source = rawSource
+    if (rawSource.includes(';')) {
+      // Accounts for e.g. searching for ortholog of human "ACE2" in mouse
+      // OrthoDB returns the raw source "ACE2;BMX"
+      const rawSources = rawSource.split(';')
+      console.log('rawSources', rawSources)
+      source = genes.find(gene => rawSources.includes(gene))
+    }
+    console.log('source', source)
+
     const sourceId = getOrthoDBId(result.gene_s.value)
-    if (orthologMap[source].length > 0) sources[source] = {id: sourceId}
+    if (orthologMap[source]?.length > 0) {
+      sources[source] = {id: sourceId}
+    }
 
     const name = result.gene_t_name.value;
     const id = getOrthoDBId(result.gene_t.value)
-    if (!seenTargetNames[source].includes(name)) {
+    if (source in seenTargetNames && !seenTargetNames[source].includes(name)) {
       seenTargetNames[source].push(name)
       orthologMap[source].push({name, id})
     }
@@ -352,8 +364,6 @@ async function enrichMap(orthologMap, sources) {
 
   orthologMap = enrichedMap
   sources = enrichedSources
-
-  console.log('after await Promise.all')
 
   return {orthologMap, sources}
 }
