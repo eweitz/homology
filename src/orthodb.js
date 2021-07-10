@@ -261,12 +261,26 @@ function getOrthologMap(genes, sparqlJson) {
       // Accounts for e.g. searching for ortholog of human "ACE2" in mouse
       // OrthoDB returns the raw source "ACE2;BMX"
       const rawSources = rawSource.split(';')
-      console.log('rawSources', rawSources)
       source = genes.find(gene => rawSources.includes(gene))
     }
-    console.log('source', source)
 
     const sourceId = getOrthoDBId(result.gene_s.value)
+
+    // If user e.g. types in "mtor" for human, canonicalize to "MTOR".
+    // This makes source gene matches case-insensitive, as expected.
+    genes.forEach(gene => {
+      if (
+        gene in orthologMap &&
+        gene !== source &&
+        gene.toLowerCase() === source.toLowerCase()
+      ) {
+        orthologMap[source] = orthologMap[gene].slice()
+        seenTargetNames[source] = seenTargetNames[gene].slice()
+        delete orthologMap[gene]
+        delete seenTargetNames[gene]
+      }
+    })
+
     if (orthologMap[source]?.length > 0) {
       sources[source] = {id: sourceId}
     }
@@ -351,6 +365,8 @@ async function enrichMap(orthologMap, sources) {
       console.log('sources, sourceName', sources, sourceName)
       const enrichedSource = await enrichGene(sources[sourceName])
       console.log('sources, sourceName, enrichedSource', sources, sourceName, enrichedSource)
+
+
       enrichedSources[sourceName] = enrichedSource
 
       // Parallelize OrthoDB REST API requests
