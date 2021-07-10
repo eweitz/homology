@@ -380,8 +380,30 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     '%3Fgene_t+%3AmemberOf+%3Fog.%0D%0A' +
     '%3Fgene_s+%3Aname+%3Fgene_s_name.%0D%0A' +
     '%3Fgene_t+%3Aname+%3Fgene_t_name.%0D%0A' +
-    `filter+%28regex%28%3Fgene_s_name%2C+%22%5E%28${genesClause}%29%24%22%2C+%22i%22%29%29%0D%0A` +
+    `filter+%28regex%28%3Fgene_s_name%2C+%22%28%5E%3B%3F${genesClause}%3B%3F%29%22%2C+%22i%22%29%29%0D%0A` +
     '%7D';
+
+    // Below is a URL-decoded example query for ACE2, which you can plug
+    // into https://sparql.orthodb.org to debug or explore.
+    //
+    // The ";?" clauses handle edge cases, where e.g. the queried gene "ACE2"
+    // matches against the "ACE2;BMX" source gene contained in OrthoDB.
+    //
+    // prefix : <http://purl.orthodb.org/>
+    // select *
+    // where {
+    // ?og a :OrthoGroup.
+    // ?gene_s a :Gene.
+    // ?gene_t a :Gene.
+    // ?gene_s up:organism/a taxon:9606.
+    // ?gene_t up:organism/a taxon:10090.
+    // ?gene_s :memberOf ?og.
+    // ?gene_t :memberOf ?og.
+    // ?gene_s :name ?gene_s_name.
+    // ?gene_t :name ?gene_t_name.
+    // filter (regex(?gene_s_name, "(^;?ACE2;?)", "i"))
+    // }
+
   const sparqlJson = await fetchOrthoDBJson(query, false);
   console.log('sparql json:', sparqlJson);
 
