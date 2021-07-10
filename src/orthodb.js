@@ -348,6 +348,7 @@ async function enrichMap(orthologMap, sources) {
   // (but without library advertised there).
   await Promise.all(
     Object.entries(orthologMap).map(async ([sourceName, targets]) => {
+      console.log('sources, sourceName', sources, sourceName)
       const enrichedSource = await enrichGene(sources[sourceName])
       console.log('sources, sourceName, enrichedSource', sources, sourceName, enrichedSource)
       enrichedSources[sourceName] = enrichedSource
@@ -377,44 +378,45 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
   console.log('sourceOrg', sourceOrg)
 
-  const query =
-    'sparql/?query=prefix+%3A+%3Chttp%3A%2F%2Fpurl.orthodb.org%2F%3E%0D%0A' +
-    'select+*%0D%0A' +
-    'where+%7B%0D%0A' +
-    '%3Fog+a+%3AOrthoGroup.%0D%0A' +
-    '%3Fgene_s+a+%3AGene.%0D%0A' + // source gene
-    '%3Fgene_t+a+%3AGene.%0D%0A' + // target gene
-    `%3Fgene_s+up%3Aorganism%2Fa+taxon%3A${sourceTaxid}.%0D%0A` +
-    `%3Fgene_t+up%3Aorganism%2Fa+taxon%3A${targetTaxid}.%0D%0A` +
-    '%3Fgene_s+%3AmemberOf+%3Fog.%0D%0A' +
-    '%3Fgene_t+%3AmemberOf+%3Fog.%0D%0A' +
-    '%3Fgene_s+%3Aname+%3Fgene_s_name.%0D%0A' +
-    '%3Fgene_t+%3Aname+%3Fgene_t_name.%0D%0A' +
-    `filter+%28regex%28%3Fgene_s_name%2C+%22%28%5E%3B%3F${genesClause}%3B%3F%29%22%2C+%22i%22%29%29%0D%0A` +
-    '%7D';
+  const query = encodeURIComponent([
+    'prefix : <http://purl.orthodb.org/>',
+    'select *',
+    'where {',
+      '?og a :OrthoGroup .',
+      '?gene_s a :Gene .', // source gene
+      '?gene_t a :Gene .', // target gene
+      `?gene_s up:organism/a taxon:${sourceTaxid} .`,
+      `?gene_t up:organism/a taxon:${targetTaxid} .`,
+      '?gene_s :memberOf ?og .',
+      '?gene_t :memberOf ?og .',
+      '?gene_s :name ?gene_s_name .',
+      '?gene_t :name ?gene_t_name .',
+      `filter (regex(?gene_s_name, "(^;?${genesClause};?)", "i"))`,
+    '}'
+  ].join('\n'));
 
-    // Below is a URL-decoded example query for ACE2, which you can plug
-    // into https://sparql.orthodb.org to debug or explore.
-    //
-    // The ";?" clauses handle edge cases, where e.g. the queried gene "ACE2"
-    // matches against the "ACE2;BMX" source gene contained in OrthoDB.
-    //
-    // prefix : <http://purl.orthodb.org/>
-    // select *
-    // where {
-    // ?og a :OrthoGroup.
-    // ?gene_s a :Gene.
-    // ?gene_t a :Gene.
-    // ?gene_s up:organism/a taxon:9606.
-    // ?gene_t up:organism/a taxon:10090.
-    // ?gene_s :memberOf ?og.
-    // ?gene_t :memberOf ?og.
-    // ?gene_s :name ?gene_s_name.
-    // ?gene_t :name ?gene_t_name.
-    // filter (regex(?gene_s_name, "(^;?ACE2;?)", "i"))
-    // }
+  // Below is an example query for ACE2, which you can plug
+  // into https://sparql.orthodb.org to debug or explore.
+  //
+  // The ";?" clauses handle edge cases, where e.g. the queried gene "ACE2"
+  // matches against the "ACE2;BMX" source gene contained in OrthoDB.
+  //
+  // prefix : <http://purl.orthodb.org/>
+  // select *
+  // where {
+  // ?og a :OrthoGroup .
+  // ?gene_s a :Gene .
+  // ?gene_t a :Gene .
+  // ?gene_s up:organism/a taxon:9606 .
+  // ?gene_t up:organism/a taxon:10090 .
+  // ?gene_s :memberOf ?og .
+  // ?gene_t :memberOf ?og .
+  // ?gene_s :name ?gene_s_name .
+  // ?gene_t :name ?gene_t_name .
+  // filter (regex(?gene_s_name, "(^;?ACE2;?)", "i"))
+  // }
 
-  const sparqlJson = await fetchOrthoDBJson(query, false);
+  const sparqlJson = await fetchOrthoDBJson('sparql/?query=' + query, false);
   console.log('sparql json:', sparqlJson);
 
   let {orthologMap, sources} = getOrthologMap(genes, sparqlJson);
