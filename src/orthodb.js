@@ -220,6 +220,11 @@ async function fetchOrtholog(gene, sourceOrg, targetOrgs) {
   return ortholog;
 }
 
+/** Determine if n is a number */
+function isNumeric(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
 /**
  * Get genomic locations of orthologs from OrthoDB
  *
@@ -262,6 +267,9 @@ function getOrthologMap(genes, sparqlJson) {
       // OrthoDB returns the raw source "ACE2;BMX"
       const rawSources = rawSource.split(';')
       source = genes.find(gene => rawSources.includes(gene))
+
+      // No name match found, as in search for human RAD51 in Zea mays.
+      if (typeof source === 'undefined') return
     }
 
     const sourceId = getOrthoDBId(result.gene_s.value)
@@ -285,7 +293,26 @@ function getOrthologMap(genes, sparqlJson) {
       sources[source] = {id: sourceId}
     }
 
-    const name = result.gene_t_name.value;
+    let name = result.gene_t_name.value;
+
+    // Handle OrthoDB's unique practice of sometimes including aliases
+    // via semicolon-delmiting the name.  This can break downstream
+    // look-up of genomic position, which queries by name (and does not
+    // expect semicolons).
+    if (name.includes(';')) {
+      const splitName = name.split(';')
+      const numericName = splitName.find(name => isNumeric(name))
+
+      if (numericName) {
+        // Use the non-numeric name if one exists, or the first name
+        const nonNumericName = splitName.find(name => !isNumeric(name))
+        name = nonNumericName ? nonNumericName : splitName[0]
+      } else {
+        // Use the shorter name of the two, which is typically the more
+        // prominent one.
+        name = splitName.sort((a, b) => a.length < b.length)[0]
+      }
+    }
     const id = getOrthoDBId(result.gene_t.value)
     if (source in seenTargetNames && !seenTargetNames[source].includes(name)) {
       seenTargetNames[source].push(name)
