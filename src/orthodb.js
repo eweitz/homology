@@ -381,16 +381,23 @@ async function enrichGene(gene) {
 /**
  * Add Ensembl ID, domains, # amino acids, # exons to source and target genes.
  */
-async function enrichMap(orthologMap, sources) {
+async function enrichMap(orthologMap, sources, orgs) {
   const enrichedMap = {}
   const enrichedSources = {}
+
+  console.log('orgs', orgs)
 
   // Parallelizes as described in https://medium.com/@antonioval/6315c3225838
   // (but without library advertised there).
   await Promise.all(
     Object.entries(orthologMap).map(async ([sourceName, targets]) => {
       console.log('sources, sourceName', sources, sourceName)
-      const enrichedSource = await enrichGene(sources[sourceName])
+      const sourceGene = sources[sourceName]
+      console.log('sourceGene', sourceGene)
+      if (!sourceGene) {
+        reportError('geneNotFound', null, sourceName, orgs.source);
+      }
+      const enrichedSource = await enrichGene(sourceGene)
       console.log('sources, sourceName, enrichedSource', sources, sourceName, enrichedSource)
 
 
@@ -416,10 +423,10 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const genesClause = genes.join('%7C') // URL encoding for | (i.e. OR)
 
   // TODO: Support multiple target organisms
-  const sourceTaxid = taxidByName[sourceOrg]
-  const targetTaxid = taxidByName[targetOrgs[0]]
+  const targetOrg = targetOrgs[0]
 
-  console.log('sourceOrg', sourceOrg)
+  const sourceTaxid = taxidByName[sourceOrg]
+  const targetTaxid = taxidByName[targetOrg]
 
   const query = encodeURIComponent([
     'prefix : <http://purl.orthodb.org/>',
@@ -466,7 +473,9 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
   // console.log('orthologMap, sources, before addEnsemblIds: ', orthologMap, sources)
 
-  ({orthologMap, sources} = await enrichMap(orthologMap, sources))
+  const orgs = {source: sourceOrg, target: targetOrg}
+
+  ({orthologMap, sources} = await enrichMap(orthologMap, sources, orgs))
 
   console.log('orthologMap, sources after enrichMap: ', orthologMap, sources)
 
