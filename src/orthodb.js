@@ -269,7 +269,9 @@ function getOrthologMap(genes, sparqlJson) {
       source = genes.find(gene => rawSources.includes(gene))
 
       // No name match found, as in search for human RAD51 in Zea mays.
-      if (typeof source === 'undefined') return
+      if (typeof source === 'undefined') {
+        throw Error('Gene not found in source organism')
+      }
     }
 
     const sourceId = getOrthoDBId(result.gene_s.value)
@@ -460,18 +462,17 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   console.log('sparql json:', sparqlJson);
 
   if (sparqlJson.results.bindings.length === 0) {
-    reportError('orthologsNotFound', null, genes, sourceOrg, targetOrg);
+    reportError('orthologsNotFound', null, genes);
   }
 
-  const orgs = {source: sourceOrg, target: targetOrg}
+  let map
+  try {
+    map = getOrthologMap(genes, sparqlJson);
+  } catch(e) {
+    reportError('geneNotFound', null, genes[0], sourceOrg);
+  }
 
-  let {orthologMap, sources} = getOrthologMap(genes, sparqlJson);
-
-  console.log('orthologMap, sources, before addEnsemblIds: ', orthologMap, sources)
-
-  ({orthologMap, sources} = await enrichMap(orthologMap, sources))
-
-  console.log('orthologMap, sources after enrichMap: ', orthologMap, sources)
+  const {orthologMap, sources} = await enrichMap(map.orthologMap, map.sources)
 
   const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
 
