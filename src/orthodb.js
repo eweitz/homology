@@ -8,7 +8,7 @@
 
 import Bottleneck from 'bottleneck';
 
-import taxidByName from './organism-map';
+import {taxidsByName} from './organism-map';
 import {reportError} from './error';
 import {fetchLocationsFromMyGeneInfo} from './lib';
 
@@ -82,7 +82,7 @@ async function fetchLocation(orthodbGene) {
 }
 
 function taxidFromOrganismName(name) {
-  return name in taxidByName ? taxidByName[name] : 'all';
+  return name in taxidsByName ? taxidsByName[name] : 'all';
 }
 
 /**
@@ -417,8 +417,8 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   // TODO: Support multiple target organisms
   const targetOrg = targetOrgs[0]
 
-  const sourceTaxid = taxidByName[sourceOrg]
-  const targetTaxid = taxidByName[targetOrg]
+  const sourceTaxid = taxidsByName[sourceOrg]
+  const targetTaxid = taxidsByName[targetOrg]
 
   const query = encodeURIComponent([
     'prefix : <http://purl.orthodb.org/>',

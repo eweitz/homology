@@ -1,5 +1,7 @@
 import {fetchOrthoDBJson} from './orthodb'
 
+import {namesByTaxid} from './organism-map'
+
 /**
  * Queries MyGene.info API, returns parsed JSON
  *
@@ -21,7 +23,6 @@ import {fetchOrthoDBJson} from './orthodb'
  */
  function parseAnnotFromMgiGene(gene) {
 
-  // console.log('in parseAnnotFromMgiGene, gene:', gene)
   // Filters out placements on alternative loci scaffolds, an advanced
   // genome assembly feature we are not concerned with in ideograms.
   //
@@ -40,6 +41,24 @@ import {fetchOrthoDBJson} from './orthodb'
     start: genomicPos.start,
     stop: genomicPos.end,
     id: genomicPos.ensemblgene
+  };
+
+  annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
+
+  return annot;
+}
+
+/**
+ * Transforms Ensembl gene into Ideogram annotation
+ */
+ function parseAnnotFromEnsembl(gene) {
+
+  const annot = {
+    name: gene.display_name,
+    chr: gene.seq_region_name,
+    start: gene.start,
+    stop: gene.end,
+    id: gene.id
   };
 
   annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
@@ -66,6 +85,29 @@ function getMyGeneInfoQueryString(genes, taxid) {
   return `?q=${qParam}&species=${taxid}&fields=symbol,genomic_pos,name,exons`;
 }
 
+/** Fetch gene positions from Ensembl REST API */
+async function fetchLocationsFromEnsembl(genes, taxid) {
+  const organism = namesByTaxid[taxid].replace(/ /g, '_')
+
+  // Docs: https://rest.ensembl.org/documentation/info/symbol_post
+  const response = await fetch(
+    `https://rest.ensembl.org/lookup/symbol/${organism}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        symbols: genes,
+        // expand: 1, // Includes transcripts, exons
+      }),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+
+  const data = response.json()
+  return data
+}
+
 /** Fetch gene positions from MyGene.info API */
 export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
   const annots = [];
@@ -74,19 +116,29 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
   const initialData = await fetchMyGeneInfo(queryString);
 
   let data = initialData
-
-  console.log('data', data)
+  let insufficientData = false
 
   data.hits.forEach(gene => {
-    console.log('gene', gene)
-    // If hit lacks position, skip processing
-    if ('genomic_pos' in gene === false) return;
-    if ('name' in gene === false) return;
+    // If hit lacks position or, flag for backup approach
+    if (
+      'genomic_pos' in gene === false ||
+      ('name' in gene === false && '_id' in gene === false)
+    ) {
+      insufficientData = true
+      return
+    };
 
     const annot = parseAnnotFromMgiGene(gene);
     annots.push(annot);
-    // console.log('gene, length:', gene, annot.stop - annot.start)
   });
+
+  if (insufficientData) {
+    data = await fetchLocationsFromEnsembl(genes, taxid)
+    for (const symbol in data) {
+      const annot = parseAnnotFromEnsembl(data[symbol])
+      annots.push(annot)
+    }
+  }
 
   return annots;
 }

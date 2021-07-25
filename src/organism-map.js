@@ -1,4 +1,4 @@
-const taxidByName = {
+export const taxidsByName = {
   'aedes aegypti': '7159',
   'anopheles gambiae': '7165',
   'arabidopsis thaliana': '3702',
@@ -39,4 +39,16 @@ const taxidByName = {
   'vitis vinifera': '29760',
   'zea mays': '4577'
 }
-export default taxidByName;
+
+// Invert keys and values in object, per
+// https://stackoverflow.com/a/23013726/10564415
+function invert(obj) {
+  const ret = {};
+  Object.keys(obj).forEach(key => {
+    ret[obj[key]] = key;
+  });
+  return ret;
+}
+
+export const namesByTaxid = invert(taxidsByName)
+
