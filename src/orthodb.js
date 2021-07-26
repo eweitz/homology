@@ -25,12 +25,6 @@ var limiter = new Bottleneck({
 // var orthodbBase = 'http://localhost:5000/orthodb/';
 var orthodbBase = 'http://localhost:5001/homology-api/us-central1/app/orthodb/'
 
-var apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
-
-var ncbiBase =
-  'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi' +
-  '?db=gene&retmode=json' + apiKey;
-
 /**
  * Get JSON response from OrthoDB API
  */
@@ -44,20 +38,6 @@ export async function fetchOrthoDBJson(path, isRest=true) {
   }
 }
 
-/**
- * Get genomic coordinates of a gene using its NCBI Gene ID
- */
-async function fetchGeneLocationFromEUtils(ncbiGeneId) {
-  var response, data, result, ginfo, location;
-  // Example:
-  // https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&retmode=json&id=3565955
-  response = await fetch(ncbiBase + '&id=' + ncbiGeneId);
-  data = await response.json();
-  result = data.result;
-  ginfo = result[result.uids[0]].genomicinfo[0];
-  location = ginfo.chrloc + ':' + ginfo.chrstart + '-' + ginfo.chrstop;
-  return location;
-}
 
 async function fetchLocation(orthodbGene) {
   var ncbiGeneId, ogDetails, location,
@@ -259,6 +239,8 @@ function getOrthologMap(genes, sparqlJson) {
 
   const sources = {}
 
+  let hasSource = true
+
   sparqlJson.results.bindings.forEach(result => {
     const rawSource = result.gene_s_name.value
     let source = rawSource
@@ -269,9 +251,7 @@ function getOrthologMap(genes, sparqlJson) {
       source = genes.find(gene => rawSources.includes(gene))
 
       // No name match found, as in search for human RAD51 in Zea mays.
-      if (typeof source === 'undefined') {
-        throw Error('Gene not found in source organism')
-      }
+      if (typeof source === 'undefined') return
     }
 
     const sourceId = getOrthoDBId(result.gene_s.value)
@@ -483,6 +463,8 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
   const targetLocations =
     await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
+
+  console.log('targetLocations', targetLocations)
 
   const orthologs = []
 

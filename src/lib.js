@@ -3,6 +3,38 @@ import {fetchOrthoDBJson} from './orthodb'
 import {namesByTaxid} from './organism-map'
 
 /**
+ * Get genomic coordinates of a gene using its NCBI Gene ID
+ */
+ async function fetchAnnotFromEUtils(ncbiGeneIds) {
+  const apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
+
+  const ncbiBase =
+    'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi' +
+    '?db=gene&retmode=json' + apiKey;
+
+  // Example:
+  // https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&retmode=json&id=3565955
+  const response = await fetch(ncbiBase + '&id=' + ncbiGeneIds.join(','))
+  const data = await response.json()
+  const result = data.result
+
+  const gene = result[result.uids[0]]
+  const loc = gene.genomicinfo[0]
+
+  const annot = {
+    name: gene.name,
+    chr: loc.chrloc,
+    start: loc.chrstart,
+    stop: loc.chrstop,
+    id: gene.uid
+  }
+  annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
+
+  return [annot];
+}
+
+
+/**
  * Queries MyGene.info API, returns parsed JSON
  *
  * Docs:
@@ -110,13 +142,15 @@ async function fetchLocationsFromEnsembl(genes, taxid) {
 
 /** Fetch gene positions from MyGene.info API */
 export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
-  const annots = [];
+  let annots = [];
 
   let queryString = getMyGeneInfoQueryString(genes, taxid)
   const initialData = await fetchMyGeneInfo(queryString);
 
   let data = initialData
   let insufficientData = false
+
+  if (data.hits.length === 0) insufficientData = true
 
   data.hits.forEach(gene => {
     // If hit lacks position or, flag for backup approach
@@ -132,12 +166,10 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
     annots.push(annot);
   });
 
+
   if (insufficientData) {
-    data = await fetchLocationsFromEnsembl(genes, taxid)
-    for (const symbol in data) {
-      const annot = parseAnnotFromEnsembl(data[symbol])
-      annots.push(annot)
-    }
+    const ncbiGeneIds = genes.map(gene => gene.name)
+    annots = await fetchAnnotFromEUtils(ncbiGeneIds)
   }
 
   return annots;
