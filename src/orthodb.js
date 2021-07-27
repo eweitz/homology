@@ -464,11 +464,12 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const targetLocations =
     await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
 
+  console.log('orthologMap', orthologMap)
   console.log('targetLocations', targetLocations)
 
   const orthologs = []
 
-  Object.entries(orthologMap).forEach(([sourceGene, targetGenes]) => {
+  Object.entries(orthologMap).forEach(([sourceGene, targetGenes], i) => {
     const ortholog = []
 
     console.log('targets, unsorted', targetGenes)
@@ -486,7 +487,7 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
       let targetLocation =
         targetLocations.find(tl => tl.name === targetName)
 
-      if (!targetLocation) { targetLocation = targetLocations[0]}
+      if (!targetLocation) { targetLocation = targetLocations[i]}
 
       const target = {gene: targetName, location: targetLocation.location}
       ortholog.push(target)

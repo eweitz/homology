@@ -5,7 +5,9 @@ import {namesByTaxid} from './organism-map'
 /**
  * Get genomic coordinates of a gene using its NCBI Gene ID
  */
- async function fetchAnnotFromEUtils(ncbiGeneIds) {
+ async function fetchAnnotsFromEUtils(ncbiGeneIds) {
+  const annots = []
+
   const apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
 
   const ncbiBase =
@@ -18,19 +20,25 @@ import {namesByTaxid} from './organism-map'
   const data = await response.json()
   const result = data.result
 
-  const gene = result[result.uids[0]]
-  const loc = gene.genomicinfo[0]
+  result.uids.forEach(uid => {
+    const gene = result[uid]
+    const loc = gene.genomicinfo[0]
 
-  const annot = {
-    name: gene.name,
-    chr: loc.chrloc,
-    start: loc.chrstart,
-    stop: loc.chrstop,
-    id: gene.uid
-  }
-  annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
+    const annot = {
+      name: gene.name,
+      chr: loc.chrloc,
+      start: loc.chrstart,
+      stop: loc.chrstop,
+      id: gene.uid
+    }
+    annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
 
-  return [annot];
+    annots.push(annot)
+  })
+
+  console.log('annots from ncbi', annots)
+
+  return annots
 }
 
 
@@ -150,7 +158,8 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
   let data = initialData
   let insufficientData = false
 
-  if (data.hits.length === 0) insufficientData = true
+  const numHits = data.hits.length
+  if (numHits === 0 || numHits < genes.length) insufficientData = true
 
   data.hits.forEach(gene => {
     // If hit lacks position or, flag for backup approach
@@ -169,7 +178,7 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
 
   if (insufficientData) {
     const ncbiGeneIds = genes.map(gene => gene.name)
-    annots = await fetchAnnotFromEUtils(ncbiGeneIds)
+    annots = await fetchAnnotsFromEUtils(ncbiGeneIds)
   }
 
   return annots;
