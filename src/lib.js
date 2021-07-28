@@ -26,12 +26,15 @@ import {namesByTaxid} from './organism-map'
 
     const annot = {
       name: gene.name,
-      chr: loc.chrloc,
-      start: loc.chrstart,
-      stop: loc.chrstop,
       id: gene.uid
     }
-    annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
+
+    if (loc) {
+      annot.chr = loc.chrloc,
+      annot.start = loc.chrstart,
+      annot.stop = loc.chrstop,
+      annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
+    }
 
     annots.push(annot)
   })
