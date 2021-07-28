@@ -177,7 +177,7 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
 
 
   if (insufficientData) {
-    const ncbiGeneIds = genes.map(gene => gene.name)
+    const ncbiGeneIds = genes.map(gene => gene.ncbiGeneId)
     annots = await fetchAnnotsFromEUtils(ncbiGeneIds)
   }
 

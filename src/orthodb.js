@@ -353,6 +353,10 @@ async function enrichGene(gene) {
     gene.ensemblId = ogDetails.ensembl[0].id
   }
 
+  if (ogDetails.entrez) {
+    gene.ncbiGeneId = ogDetails.entrez[0].id
+  }
+
   gene.aas = ogDetails.aas // length in amino acids
   gene.exons = ogDetails.exons // number of exons
   gene.domains = ogDetails.interpro
