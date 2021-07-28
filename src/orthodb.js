@@ -377,6 +377,10 @@ async function enrichMap(orthologMap, sources) {
   await Promise.all(
     Object.entries(orthologMap).map(async ([sourceName, targets]) => {
       const sourceGene = sources[sourceName]
+
+      if (typeof sourceGene === 'undefined') {
+        throw Error(`${sourceName} not found in target`)
+      }
       const enrichedSource = await enrichGene(sourceGene)
 
       enrichedSources[sourceName] = enrichedSource
@@ -456,7 +460,16 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     reportError('geneNotFound', null, genes[0], sourceOrg);
   }
 
-  const {orthologMap, sources} = await enrichMap(map.orthologMap, map.sources)
+  let enrichedMap
+  try {
+    enrichedMap = await enrichMap(map.orthologMap, map.sources)
+  } catch(e) {
+    const gene = e.message.split(' ')[0]
+    reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
+  }
+
+  const orthologMap = enrichedMap.orthologMap
+  const sources = enrichedMap.sources
 
   const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
 
