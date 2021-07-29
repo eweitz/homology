@@ -39,8 +39,6 @@ import {namesByTaxid} from './organism-map'
     annots.push(annot)
   })
 
-  console.log('annots from ncbi', annots)
-
   return annots
 }
 
@@ -118,7 +116,7 @@ function getMyGeneInfoQueryString(genes, taxid) {
     // https://mygene.info/v3/query?q=symbol:Su\(H\)&species=7227&fields=symbol,genomic_pos,name&size=20
     // See https://github.com/biothings/mygene.info/issues/112.
     if (gene.name) gene = gene.name
-    const escapedGene = gene.replaceAll('(', '\\(').replaceAll(')', '\\)')
+    const escapedGene = gene.replace(/\(/g, '\\(').replace(/\)/g, '\\)')
     return `symbol:${escapedGene}`;
     }
   }).join(' OR ');
