@@ -178,6 +178,10 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
 
 
   if (insufficientData) {
+    console.log('genes[0]', genes[0])
+    if ('ncbiGeneId' in genes[0] === false) {
+      throw Error('Enrichment needed')
+    }
     const ncbiGeneIds = genes.map(gene => gene.ncbiGeneId)
     annots = await fetchAnnotsFromEUtils(ncbiGeneIds)
   }
