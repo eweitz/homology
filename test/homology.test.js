@@ -6,6 +6,9 @@ const fetch = require('node-fetch');
 import fetchOrthologs from '../src/index.js';
 
 describe('Homology.js', () => {
+
+  jest.setTimeout(20000)
+
   beforeAll(() => {
     global.fetch = fetch;
   });
