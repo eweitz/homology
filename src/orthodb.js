@@ -14,7 +14,7 @@ import Bottleneck from 'bottleneck';
 
 import {taxidsByName} from './organism-map';
 import {reportError} from './error';
-import {fetchLocations} from './lib';
+import {fetchLocations, fetchAnnotsFromEUtils} from './lib';
 
 var limiter = new Bottleneck({
   minTime: 333,
@@ -501,7 +501,8 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     enrichedMap = await enrichMap(map.orthologMap, map.sources, true)
     orthologMap = enrichedMap.orthologMap
     sources = enrichedMap.sources
-    sourceLocations = await fetchLocations(genes, sourceTaxid);
+    const ncbiGeneIds = Object.values(sources).map(s => s.ncbiGeneId)
+    sourceLocations = await fetchAnnotsFromEUtils(ncbiGeneIds);
   }
 
   let rawTargets

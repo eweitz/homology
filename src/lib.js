@@ -5,7 +5,7 @@ import {namesByTaxid} from './organism-map'
 /**
  * Get genomic coordinates of a gene using its NCBI Gene ID
  */
- async function fetchAnnotsFromEUtils(ncbiGeneIds) {
+ export async function fetchAnnotsFromEUtils(ncbiGeneIds) {
   const annots = []
 
   const apiKey = '&api_key=e7ce8adecd69d0457df7ec2ccbb704c4e709';
@@ -181,7 +181,7 @@ export async function fetchLocations(genes, taxid) {
 
   // If MGI fails, try getting data from NCBI
   if (insufficientData) {
-    if ('ncbiGeneId' in genes[0] === false) {
+    if (typeof genes[0] === 'string' || 'ncbiGeneId' in genes[0] === false) {
       // Send a signal upstream that we need more data from OrthoDB
       throw Error('Enrichment needed')
     }
