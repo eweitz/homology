@@ -326,7 +326,11 @@ function sortTargetGenes(targetGenes, sourceGene, sources) {
       if (b.exons == source.exons) return 1
     }
 
-    if (geneA !== sourceGene && geneB !== sourceGene) {
+    if (
+      a.domains?.length > 1 && b.domains?.length > 1 &&
+      geneA !== sourceGene && geneB !== sourceGene
+    ) {
+      // Good test case: search for human THAP1 in mouse
       const aDomains = a.domains.length
       const bDomains = b.domains.length
       const sourceDomains = source.domains.length
@@ -366,10 +370,11 @@ async function enrichGene(gene) {
 /**
  * Add Ensembl ID, domains, # amino acids, # exons to source and target genes.
  */
-async function enrichMap(orthologMap, sources) {
+async function enrichMap(orthologMap, sources, forceEnrich = false) {
 
   const enrichedMap = {}
   const enrichedSources = {}
+
 
   // Parallelizes as described in https://medium.com/@antonioval/6315c3225838
   // (but without library advertised there).
@@ -380,6 +385,19 @@ async function enrichMap(orthologMap, sources) {
       if (typeof sourceGene === 'undefined') {
         throw Error(`${sourceName} not found in target`)
       }
+
+      // If any target matches the source name, it's an ortholog
+      // and we can drastically speed up the UI by avoiding all the
+      // network chatter needs for enrichment
+      const needsEnrichment = forceEnrich || targets.every(target => {
+        return target.name.toLowerCase() !== sourceName.toLowerCase()
+      })
+
+      if (needsEnrichment === false) {
+        enrichedMap[sourceName] = targets
+        return
+      }
+
       const enrichedSource = await enrichGene(sourceGene)
 
       enrichedSources[sourceName] = enrichedSource
@@ -467,18 +485,43 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     reportError('orthologsNotFoundInTarget', null, gene, sourceOrg, targetOrgs);
   }
 
-  const orthologMap = enrichedMap.orthologMap
-  const sources = enrichedMap.sources
+  let orthologMap = enrichedMap.orthologMap
+  let sources = enrichedMap.sources
 
-  const sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
+  let sourceLocations
+  try {
+    sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
+  } catch (e) {
+    // If no locations were found due to lacking IDs, then force
+    // enrichment and try again
+    enrichedMap = await enrichMap(map.orthologMap, map.sources, true)
+    orthologMap = enrichedMap.orthologMap
+    sources = enrichedMap.sources
+    sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
+  }
 
-  let rawTargets = []
-  Object.entries(orthologMap).forEach(([source, targets]) => {
-    rawTargets = rawTargets.concat(targets)
-  })
-
-  const targetLocations =
-    await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
+  let rawTargets
+  let targetLocations
+  try {
+    rawTargets = []
+    Object.entries(orthologMap).forEach(([source, targets]) => {
+      rawTargets = rawTargets.concat(targets)
+    })
+    targetLocations =
+      await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
+  } catch (e) {
+    // If no locations were found due to lacking IDs, then force
+    // enrichment and try again
+    rawTargets = []
+    Object.entries(orthologMap).forEach(([source, targets]) => {
+      rawTargets = rawTargets.concat(targets)
+    })
+    enrichedMap = await enrichMap(map.orthologMap, map.sources, true)
+    orthologMap = enrichedMap.orthologMap
+    sources = enrichedMap.sources
+    targetLocations =
+      await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
+  }
 
   const orthologs = []
 
