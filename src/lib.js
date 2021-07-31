@@ -149,21 +149,24 @@ async function fetchLocationsFromEnsembl(genes, taxid) {
   return data
 }
 
-/** Fetch gene positions from MyGene.info API */
-export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
+/**
+ * Fetch gene positions from MyGene.info (MGI), with NCBI as fallback
+ *
+ * MGI is fast but incomplete.  NCBI is slow but complete.  So try MGI
+ * first, and fallback to the more robust but less speedy NCBI if MGI
+ * results don't return adequate data.
+ */
+export async function fetchLocations(genes, taxid) {
   let annots = [];
 
-  let queryString = getMyGeneInfoQueryString(genes, taxid)
-  const initialData = await fetchMyGeneInfo(queryString);
+  const queryString = getMyGeneInfoQueryString(genes, taxid)
+  const data = await fetchMyGeneInfo(queryString);
 
-  let data = initialData
   let insufficientData = false
-
-  const numHits = data.hits.length
-  if (numHits === 0 || numHits < genes.length) insufficientData = true
+  if (data.hits.length < genes.length) insufficientData = true
 
   data.hits.forEach(gene => {
-    // If hit lacks position or, flag for backup approach
+    // If hit lacks position or name/id, flag for fallback approach
     if (
       'genomic_pos' in gene === false ||
       ('name' in gene === false && '_id' in gene === false)
@@ -176,10 +179,10 @@ export async function fetchLocationsFromMyGeneInfo(genes, taxid) {
     annots.push(annot);
   });
 
-
+  // If MGI fails, try getting data from NCBI
   if (insufficientData) {
-    console.log('genes[0]', genes[0])
     if ('ncbiGeneId' in genes[0] === false) {
+      // Send a signal upstream that we need more data from OrthoDB
       throw Error('Enrichment needed')
     }
     const ncbiGeneIds = genes.map(gene => gene.ncbiGeneId)

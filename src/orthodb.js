@@ -2,15 +2,19 @@
 * @fileoverview Client library for OrthoDB
 * API docs: https://www.orthodb.org/?page=api
 *
-* This module supports fetching orthologs from OMA.  All functions here
-* support the single exported function `fetchOrthologsFromOrthoDb`.
+* This module supports fetching orthologs from OrthoDB, using:
+* - REST API, via fetchOrthologsFromOrthodb, or
+* - SPARQL API, via fetchOrthologsFromOrthodbSparql
+*
+* The SPARQL API is more robust and faster, but the REST API
+* is retained as a potential future fallback.
 */
 
 import Bottleneck from 'bottleneck';
 
 import {taxidsByName} from './organism-map';
 import {reportError} from './error';
-import {fetchLocationsFromMyGeneInfo} from './lib';
+import {fetchLocations} from './lib';
 
 var limiter = new Bottleneck({
   minTime: 333,
@@ -490,14 +494,14 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
   let sourceLocations
   try {
-    sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
+    sourceLocations = await fetchLocations(genes, sourceTaxid);
   } catch (e) {
     // If no locations were found due to lacking IDs, then force
     // enrichment and try again
     enrichedMap = await enrichMap(map.orthologMap, map.sources, true)
     orthologMap = enrichedMap.orthologMap
     sources = enrichedMap.sources
-    sourceLocations = await fetchLocationsFromMyGeneInfo(genes, sourceTaxid);
+    sourceLocations = await fetchLocations(genes, sourceTaxid);
   }
 
   let rawTargets
@@ -508,7 +512,7 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
       rawTargets = rawTargets.concat(targets)
     })
     targetLocations =
-      await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
+      await fetchLocations(rawTargets, targetTaxid)
   } catch (e) {
     // If no locations were found due to lacking IDs, then force
     // enrichment and try again
@@ -520,7 +524,7 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     orthologMap = enrichedMap.orthologMap
     sources = enrichedMap.sources
     targetLocations =
-      await fetchLocationsFromMyGeneInfo(rawTargets, targetTaxid)
+      await fetchLocations(rawTargets, targetTaxid)
   }
 
   const orthologs = []
