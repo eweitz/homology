@@ -243,8 +243,6 @@ function getOrthologMap(genes, sparqlJson) {
 
   const sources = {}
 
-  let hasSource = true
-
   sparqlJson.results.bindings.forEach(result => {
     const rawSource = result.gene_s_name.value
     let source = rawSource
@@ -275,16 +273,16 @@ function getOrthologMap(genes, sparqlJson) {
       }
     })
 
-    if (orthologMap[source]?.length > 0) {
+    // if (orthologMap[source]?.length > 0) {
       sources[source] = {id: sourceId}
-    }
+    // }
 
     let name = result.gene_t_name.value;
 
     // Handle OrthoDB's unique practice of sometimes including aliases
     // via semicolon-delmiting the name.  This can break downstream
-    // look-up of genomic position, which queries by name (and does not
-    // expect semicolons).
+    // look-up of genomic position, which first queries by name (and does
+    // not expect semicolons).
     if (name.includes(';')) {
       const splitName = name.split(';')
       const numericName = splitName.find(name => isNumeric(name))
@@ -299,6 +297,7 @@ function getOrthologMap(genes, sparqlJson) {
         name = splitName.sort((a, b) => a.length < b.length)[0]
       }
     }
+
     const id = getOrthoDBId(result.gene_t.value)
     if (source in seenTargetNames && !seenTargetNames[source].includes(name)) {
       seenTargetNames[source].push(name)
@@ -420,6 +419,19 @@ async function enrichMap(orthologMap, sources, forceEnrich = false) {
   return {orthologMap, sources}
 }
 
+/** Compare two strings, roughly. */
+function fuzzyMatch(a, b) {
+  if (a === b) return true
+
+  // Disregard hyphens, e.g. allow searching Arabidopsis NFYC6,
+  // which formally has symbol "NF-YC6", to match human NFYC6
+  // (which formally has symbol "NFYC6").
+  const fuzzyA = a.replace(/-/g, '')
+  const fuzzyB = b.replace(/-/g, '')
+
+  return fuzzyA === fuzzyB
+}
+
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const genesClause = genes.join('%7C') // URL encoding for | (i.e. OR)
 
@@ -536,14 +548,14 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     targetGenes = sortTargetGenes(targetGenes, sourceGene, sources)
 
     const sourceLocation =
-      sourceLocations.find(sl => sl.name === sourceGene).location
+      sourceLocations.find(sl => fuzzyMatch(sl.name, sourceGene)).location
     const source = {gene: sourceGene, location: sourceLocation}
     ortholog.push(source)
 
     targetGenes.forEach(targetGene => {
       const targetName = targetGene.name
       let targetLocation =
-        targetLocations.find(tl => tl.name === targetName)
+        targetLocations.find(tl => fuzzyMatch(tl.name, targetName))
 
       if (!targetLocation) { targetLocation = targetLocations[i]}
 
