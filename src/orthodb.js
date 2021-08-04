@@ -549,17 +549,24 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
 
     const sourceLocation =
       sourceLocations.find(sl => fuzzyMatch(sl.name, sourceGene)).location
-    const source = {gene: sourceGene, location: sourceLocation}
+    const source = {name: sourceGene, location: sourceLocation}
     ortholog.push(source)
 
     targetGenes.forEach(targetGene => {
       const targetName = targetGene.name
-      let targetLocation =
-        targetLocations.find(tl => fuzzyMatch(tl.name, targetName))
+      let targetLocation = targetLocations.find(tl => {
+        return (
+          fuzzyMatch(tl.name, targetName) &&
+
+          // Encountered when searching e.g. SP5G and PG2
+          // between Solanum lycopersicum and Capsicum annuum.
+          tl.location !== undefined
+        )
+      })
 
       if (!targetLocation) { targetLocation = targetLocations[i]}
 
-      const target = {gene: targetName, location: targetLocation.location}
+      const target = {name: targetName, location: targetLocation.location}
       ortholog.push(target)
     })
     orthologs.push(ortholog)
