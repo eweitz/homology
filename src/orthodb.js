@@ -432,6 +432,19 @@ function fuzzyMatch(a, b) {
   return fuzzyA === fuzzyB
 }
 
+/** Determines whether a candidate object matches a reference */
+function isSuitableMatch(candidate, referenceName) {
+  return (
+    candidate.name !== undefined &&
+
+    // Encountered when searching e.g. SP5G and PG2
+    // between Solanum lycopersicum and Capsicum annuum.
+    candidate.location !== undefined &&
+
+    fuzzyMatch(candidate.name, referenceName)
+  )
+}
+
 async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   const genesClause = genes.join('%7C') // URL encoding for | (i.e. OR)
 
@@ -548,21 +561,14 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     targetGenes = sortTargetGenes(targetGenes, sourceGene, sources)
 
     const sourceLocation =
-      sourceLocations.find(sl => fuzzyMatch(sl.name, sourceGene)).location
+      sourceLocations.find(sl => isSuitableMatch(sl, sourceGene)).location
     const source = {name: sourceGene, location: sourceLocation}
     ortholog.push(source)
 
     targetGenes.forEach(targetGene => {
       const targetName = targetGene.name
-      let targetLocation = targetLocations.find(tl => {
-        return (
-          fuzzyMatch(tl.name, targetName) &&
-
-          // Encountered when searching e.g. SP5G and PG2
-          // between Solanum lycopersicum and Capsicum annuum.
-          tl.location !== undefined
-        )
-      })
+      let targetLocation =
+        targetLocations.find(tl => isSuitableMatch(tl, targetName))
 
       if (!targetLocation) { targetLocation = targetLocations[i]}
 
