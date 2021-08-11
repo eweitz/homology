@@ -42,14 +42,9 @@ export async function fetchOrthoDBJson(path, isRest=true) {
   }
 }
 
-
-async function fetchLocation(orthodbGene) {
-  var ncbiGeneId, ogDetails, location,
-    orthodbGeneId = orthodbGene.gene_id.param;
-
-  // Example:
-  // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
-  ogDetails = await fetchOrthoDBJson('ogdetails?id=' + orthodbGeneId);
+/** Get NCBI Gene ID from ogDetails object */
+function getNcbiGeneId(ogDetails) {
+  var ncbiGeneId;
 
   if ('entrez' in ogDetails) {
     ncbiGeneId = ogDetails.entrez[0].id;
@@ -60,6 +55,19 @@ async function fetchLocation(orthodbGene) {
       if (xref.type === 'NCBIgene') ncbiGeneId = xref.name;
     });
   }
+
+  return ncbiGeneId
+}
+
+async function fetchLocation(orthodbGene) {
+  var ncbiGeneId, ogDetails, location,
+    orthodbGeneId = orthodbGene.gene_id.param;
+
+  // Example:
+  // https://homology-api.firebaseapp.com/orthodb/ogdetails?id=6239_0:0008da
+  ogDetails = await fetchOrthoDBJson('ogdetails?id=' + orthodbGeneId);
+
+  ncbiGeneId = getNcbiGeneId(ogDetails)
 
   location = await limiter.schedule(() => fetchGeneLocationFromEUtils(ncbiGeneId));
   return location;
@@ -359,9 +367,7 @@ async function enrichGene(gene) {
     gene.ensemblId = ogDetails.ensembl[0].id
   }
 
-  if (ogDetails.entrez) {
-    gene.ncbiGeneId = ogDetails.entrez[0].id
-  }
+  gene.ncbiGeneId = getNcbiGeneId(ogDetails)
 
   gene.aas = ogDetails.aas // length in amino acids
   gene.exons = ogDetails.exons // number of exons
@@ -542,12 +548,13 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
   } catch (e) {
     // If no locations were found due to lacking IDs, then force
     // enrichment and try again
+    enrichedMap = await enrichMap(map.orthologMap, map.sources, true)
+    orthologMap = enrichedMap.orthologMap
+
     rawTargets = []
     Object.entries(orthologMap).forEach(([source, targets]) => {
       rawTargets = rawTargets.concat(targets)
     })
-    enrichedMap = await enrichMap(map.orthologMap, map.sources, true)
-    orthologMap = enrichedMap.orthologMap
     sources = enrichedMap.sources
     targetLocations =
       await fetchLocations(rawTargets, targetTaxid)
