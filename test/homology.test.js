@@ -1,3 +1,7 @@
+/**
+ * @jest-environment jsdom
+ */
+
 require("babel-register");
 require("babel-polyfill");
 
