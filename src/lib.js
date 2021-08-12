@@ -1,7 +1,3 @@
-import {fetchOrthoDBJson} from './orthodb'
-
-import {namesByTaxid} from './organism-map'
-
 /**
  * Get genomic coordinates of a gene using its NCBI Gene ID
  */
@@ -41,7 +37,6 @@ import {namesByTaxid} from './organism-map'
 
   return annots
 }
-
 
 /**
  * Queries MyGene.info API, returns parsed JSON
@@ -89,24 +84,6 @@ import {namesByTaxid} from './organism-map'
   return annot;
 }
 
-/**
- * Transforms Ensembl gene into Ideogram annotation
- */
- function parseAnnotFromEnsembl(gene) {
-
-  const annot = {
-    name: gene.display_name,
-    chr: gene.seq_region_name,
-    start: gene.start,
-    stop: gene.end,
-    id: gene.id
-  };
-
-  annot.location = annot.chr + ':' + annot.start + '-' + annot.stop
-
-  return annot;
-}
-
 function getMyGeneInfoQueryString(genes, taxid) {
   const qParam = genes.map(gene => {
     if (gene.ensemblId) {
@@ -124,29 +101,6 @@ function getMyGeneInfoQueryString(genes, taxid) {
   // Example:
   // https://mygene.info/v3/query?q=symbol:BRCA1&species=9606&fields=symbol,genomic_pos,name
   return `?q=${qParam}&species=${taxid}&fields=symbol,genomic_pos,name,exons`;
-}
-
-/** Fetch gene positions from Ensembl REST API */
-async function fetchLocationsFromEnsembl(genes, taxid) {
-  const organism = namesByTaxid[taxid].replace(/ /g, '_')
-
-  // Docs: https://rest.ensembl.org/documentation/info/symbol_post
-  const response = await fetch(
-    `https://rest.ensembl.org/lookup/symbol/${organism}`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        symbols: genes,
-        // expand: 1, // Includes transcripts, exons
-      }),
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-  )
-
-  const data = response.json()
-  return data
 }
 
 /**
