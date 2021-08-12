@@ -41,6 +41,18 @@ describe('Homology.js', () => {
     expect(orthologs[0][1].location).toBe('I:11224836-11233334');
   });
 
+  it('handles case-insensitive matches', async () => {
+
+    let genes = ['nfya'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['caenorhabditis elegans'];
+
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
+
+    expect(orthologs[0][0].location).toBe('6:41072974-41102403');
+    expect(orthologs[0][1].location).toBe('I:11224836-11233334');
+  });
+
   it('handles orthologs between human and mosquito', async () => {
 
     let genes = ['MTOR'];
@@ -78,4 +90,93 @@ describe('Homology.js', () => {
 
     expect(orthologs.length).toEqual(2);
   });
+
+  it('sorts by domains when lacking other data', async () => {
+
+    let genes = ['THAP1'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['mus musculus'];
+
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
+
+    expect(orthologs[0][0].name).toBe('THAP1');
+    expect(orthologs[0][1].name).toBe('Thap1');
+  });
+
+  it('sorts by domains when lacking other data', async () => {
+
+    let genes = ['THAP1'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['mus musculus'];
+
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
+
+    expect(orthologs[0][0].name).toBe('THAP1');
+    expect(orthologs[0][1].name).toBe('Thap1');
+  });
+
+  it('throws "Orthologs not found" error', async () => {
+
+    let genes = ['asdf'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['mus musculus'];
+
+    try {
+      await fetchOrthologs(genes, sourceOrg, targetOrgs);
+    } catch (e) {
+      expect(e.message).toBe('Orthologs not found for gene "asdf"');
+    }
+
+  });
+
+  it('throws "Orthologs not found in target organism" error', async () => {
+
+    let genes = ['AG'];
+    let sourceOrg = 'arabidopsis thaliana';
+    let targetOrgs = ['homo sapiens'];
+
+    try {
+      await fetchOrthologs(genes, sourceOrg, targetOrgs);
+    } catch (e) {
+      expect(e.message).toBe('Orthologs not found for gene "AG" in target organism "Homo sapiens"');
+    }
+
+  });
+
+  it('handles initially unfound location for source gene', async () => {
+
+    let genes = ['PG2'];
+    let sourceOrg = 'solanum lycopersicum';
+    let targetOrgs = ['capsicum annuum'];
+
+    try {
+      await fetchOrthologs(genes, sourceOrg, targetOrgs);
+    } catch (e) {
+      expect(e.message).toBe('Orthologs not found for gene "AG" in target organism "Homo sapiens"');
+    }
+
+  });
+
+  it('handles no name match found', async () => {
+
+    let genes = ['RAD51'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['zea mays'];
+
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
+
+    expect(orthologs.length).toEqual(1);
+  });
+
+  it('filters out placements on alternative loci scaffolds', async () => {
+
+    let genes = ['PTPRC'];
+    let sourceOrg = 'homo sapiens';
+    let targetOrgs = ['mus musculus'];
+
+    let orthologs = await fetchOrthologs(genes, sourceOrg, targetOrgs);
+
+    expect(orthologs.length).toEqual(1);
+  });
+
 });

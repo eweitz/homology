@@ -330,12 +330,7 @@ async function fetchOrthologsFromOrthodbSparql(genes, sourceOrg, targetOrgs) {
     reportError('orthologsNotFound', null, genes);
   }
 
-  let map
-  try {
-    map = getOrthologMap(genes, sparqlJson);
-  } catch(e) {
-    reportError('geneNotFound', null, genes[0], sourceOrg);
-  }
+  const map = getOrthologMap(genes, sparqlJson);
 
   let enrichedMap
   try {
